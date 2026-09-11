@@ -14,10 +14,11 @@ Windows, macOS and Linux from the same codebase.
 - **Rule presets**: 22 built-in Life-like rules — Conway's Life, 2x2, 34 Life,
   Assimilation, Coagulations, Coral, Day & Night, Diamoeba, Flakes, Gnarl,
   HighLife, Inverse Life, Long Life, Maze, Mazectric, Move, Pseudo Life,
-  Replicator, Seeds, Serviettes, Stains, Walled Cities — each tagged with its
-  long-term random-soup behavior (`stable`, `chaotic`, or `explosive`) in the
-  dropdown, e.g. "Diamoeba (chaotic)". Plus 9 Birth / 9 Survive checkboxes to
-  build any custom rule by hand.
+  Replicator, Seeds, Serviettes, Stains, Walled Cities. The "Rule" dropdown
+  groups them by long-term random-soup behavior — Chaotic / Explosive /
+  Stable section headers, presets indented underneath — instead of one flat
+  22-entry list with the class as a same-line suffix on every row. Plus 9
+  Birth / 9 Survive checkboxes to build any custom rule by hand.
 - **Finite 960x540 plane** (16:9, a half-scale Full HD proportion): live
   cells are stored as a `HashSet<(i64, i64)>` bounded to `x ∈ [-480, 479]`,
   `y ∈ [-270, 269]` (`simulation::WORLD_MIN/WORLD_MAX`) — no wraparound,

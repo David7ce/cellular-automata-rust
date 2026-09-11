@@ -604,6 +604,22 @@ top bar ("⚙") minimizes it.
 `cargo test` (12/12) and `cargo clippy --all-targets` clean; release
 rebuild done.
 
+## Update — 2026-09-12 (later: Rule dropdown grouped by behavior class)
+
+Small follow-up: "add also in rules submenu or lateral or dropdown menu
+based on type chaotic, explosive, stable." The "Rule" `ComboBox` previously
+listed all 22 presets as one flat list with the class appended to each
+row's label (e.g. "Diamoeba (chaotic)"). Now it's grouped: a small bold
+"chaotic" / "explosive" / "stable" header per section, with that class's
+presets listed indented underneath (still plain `selectable_label` rows
+inside the same `ComboBox`, not actual nested sub-menus — simpler, and
+egui's `ComboBox` doesn't support flyout submenus anyway). No behavior
+change to preset selection itself, `preset_class` still tracks the class
+label shown next to the B/S string.
+
+`cargo test` (12/12, unaffected — this is pure UI layout) and `cargo
+clippy --all-targets` clean; release rebuild done.
+
 ## Next up (priority order)
 
 1. **Pattern placement niceties.** Rotate/flip the selected pattern before

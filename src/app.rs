@@ -211,12 +211,21 @@ impl App {
                 egui::ComboBox::from_id_salt("rule_preset")
                     .selected_text(format!("{} ({})", self.preset_name, self.preset_class))
                     .show_ui(ui, |ui| {
-                        for preset in rules::PRESETS {
-                            let label = format!("{} ({})", preset.name, preset.class);
-                            if ui.selectable_label(self.preset_name == preset.name, label).clicked() {
-                                self.preset_name = preset.name;
-                                self.preset_class = preset.class;
-                                self.sim.rule = rules::preset_rule(preset);
+                        // Grouped by long-term random-soup behavior instead
+                        // of one flat 22-entry list, so a preset's class is
+                        // a section header you land in rather than a suffix
+                        // you have to read on every single row.
+                        for &class in &["chaotic", "explosive", "stable"] {
+                            ui.label(egui::RichText::new(class).small().strong());
+                            for preset in rules::PRESETS.iter().filter(|p| p.class == class) {
+                                ui.horizontal(|ui| {
+                                    ui.add_space(12.0);
+                                    if ui.selectable_label(self.preset_name == preset.name, preset.name).clicked() {
+                                        self.preset_name = preset.name;
+                                        self.preset_class = preset.class;
+                                        self.sim.rule = rules::preset_rule(preset);
+                                    }
+                                });
                             }
                         }
                     });
