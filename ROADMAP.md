@@ -620,6 +620,58 @@ label shown next to the B/S string.
 `cargo test` (12/12, unaffected — this is pure UI layout) and `cargo
 clippy --all-targets` clean; release rebuild done.
 
+## Update — 2026-09-12 (later still: library starts collapsed, real scroll-bleed fix, wider world)
+
+Follow-up feedback (with a screenshot): "put pattern library collapsed,
+but when open the max height permit to open more, also scrollbar does not
+work well is matching with actual scroll of axis Y of canvas. And render
+more canvas of width and less of height to match and fit the rectangle
+canvas."
+
+**Pattern library starts collapsed.** `show_side_panel` now defaults to
+`false` — the "☰" button still opens it, but it no longer appears
+automatically on launch.
+
+**Max height genuinely increased.** The `ScrollArea`'s height budget
+changed from `canvas_height - 3*margin - 70` (floor 240) to simply
+`canvas_height - 90` (floor 300) — a meaningfully bigger cap, using nearly
+all of the canvas height once opened rather than being capped well short
+of it.
+
+**The real scrollbar/scroll-axis bug, root-caused rather than patched
+around.** The report ("scrollbar does not work well, is matching with
+actual scroll of Y axis of canvas") turned out to be exactly what it
+sounds like: scrolling while hovering the pattern library's list was
+*also* zooming/panning the map underneath it. Root cause: our custom
+wheel handling (added for the Google Maps-style scroll behavior) reads
+raw `ctx.input(|i| i.events)` for every `Event::MouseWheel` in the frame,
+which is a global list — unlike a normal click or drag, which egui already
+routes to only the topmost widget under the pointer by layer order, a raw
+scroll event has no such per-widget targeting built in, so our code was
+applying it to the map regardless of what else the pointer happened to be
+over. Same issue for `zoom_delta()` (pinch/Ctrl+scroll). Confirmed via
+`egui::Context::rect_contains_pointer`'s own doc comment ("Will return
+false if some other area is covering the given layer") that
+`Response::hover_pos()` for the canvas already correctly returns `None`
+whenever a higher layer (like the pattern-library `Area`) covers the
+pointer — so the fix needed no new state or rect-tracking at all: just
+wrap the whole pinch/wheel/trackpad block in `if response.hover_pos()
+.is_some() { ... }`. Scrolling the library's list, or pinching/Ctrl-
+scrolling over it, now only affects the list.
+
+**World widened to 2:1** (960x480, was 960x540/16:9) to better match what
+the canvas's shape actually tends to be once the top bar's height comes
+out of a typical window — that leftover area is itself wider-than-16:9,
+not pure 16:9, so matching it more closely cuts down how much ends up as
+unused pillarbox margin either side of the map. `MINIMAP_SIZE` updated to
+match (160x80, still exactly 2:1) so the minimap doesn't reintroduce the
+distortion bug fixed a few rounds back. This doesn't eliminate
+letterbox/pillarbox bars entirely (no single fixed ratio can, across every
+window size and top-bar state), but it reduces them in the common case.
+
+`cargo test` (12/12, unaffected) and `cargo clippy --all-targets` clean;
+release rebuild done.
+
 ## Next up (priority order)
 
 1. **Pattern placement niceties.** Rotate/flip the selected pattern before

@@ -16,16 +16,20 @@ pub type Cell = (i64, i64);
 /// bounds already (nothing can insert one outside), so `next_generation`
 /// only needs to filter birth candidates, not survivors.
 ///
-/// Sized to 960x540 (16:9, half-scale "Full HD" proportion), chosen to be an
-/// exact multiple of the max-zoom cell size (`view::MAX_CELL_SIZE` = 60px
-/// divides it evenly on both axes: 16 cells wide, 9 cells tall), so the
-/// world's edge lines up cleanly with the grid at max zoom instead of
-/// clipping a partial cell. The *minimum* zoom (zoomed all the way out) is
-/// dynamic rather than a fixed divisor of this size — see
-/// `view::min_cell_size_to_fit_world`, which always shows the whole map
-/// regardless of window size.
-pub const WORLD_MIN: Cell = (-480, -270);
-pub const WORLD_MAX: Cell = (479, 269);
+/// Sized to 960x480, a 2:1 rectangle — wider than a plain 16:9 (1.78) to
+/// better match the canvas's *actual* usable shape once the top bar's
+/// height is subtracted from a typical window (a wider-than-16:9 area, not
+/// a pure 16:9 one), which cuts down how much of the canvas ends up as
+/// unused pillarbox margin either side of the map (`app::fit_aspect_rect`).
+/// Also chosen to be an exact multiple of the max-zoom cell size
+/// (`view::MAX_CELL_SIZE` = 60px divides it evenly on both axes: 16 cells
+/// wide, 8 cells tall), so the world's edge lines up cleanly with the grid
+/// at max zoom instead of clipping a partial cell. The *minimum* zoom
+/// (zoomed all the way out) is dynamic rather than a fixed divisor of this
+/// size — see `view::min_cell_size_to_fit_world`, which always shows the
+/// whole map regardless of window size.
+pub const WORLD_MIN: Cell = (-480, -240);
+pub const WORLD_MAX: Cell = (479, 239);
 
 pub fn in_world(cell: Cell) -> bool {
     cell.0 >= WORLD_MIN.0 && cell.0 <= WORLD_MAX.0 && cell.1 >= WORLD_MIN.1 && cell.1 <= WORLD_MAX.1

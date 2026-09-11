@@ -19,16 +19,18 @@ Windows, macOS and Linux from the same codebase.
   Stable section headers, presets indented underneath — instead of one flat
   22-entry list with the class as a same-line suffix on every row. Plus 9
   Birth / 9 Survive checkboxes to build any custom rule by hand.
-- **Finite 960x540 plane** (16:9, a half-scale Full HD proportion): live
-  cells are stored as a `HashSet<(i64, i64)>` bounded to `x ∈ [-480, 479]`,
-  `y ∈ [-270, 269]` (`simulation::WORLD_MIN/WORLD_MAX`) — no wraparound,
-  cells simply can't be painted, stamped, or born past the edge (drawn as a
-  red boundary line on the canvas), stepped with the standard
-  neighbor-counting algorithm (`O(live cells)` per generation). The size is
-  an exact multiple of both zoom-range endpoints (`view::MAX_CELL_SIZE` =
-  60px, and the dynamic minimum described below both divide it evenly), so
-  the world's edge always lines up cleanly with the grid instead of
-  clipping a partial cell at some zoom levels.
+- **Finite 960x480 plane** (2:1 — wider than plain 16:9, chosen to better
+  match the canvas's actual usable shape once the top bar's height is
+  subtracted from a typical window, which is itself wider-than-16:9, not a
+  pure 16:9 rectangle): live cells are stored as a `HashSet<(i64, i64)>`
+  bounded to `x ∈ [-480, 479]`, `y ∈ [-240, 239]`
+  (`simulation::WORLD_MIN/WORLD_MAX`) — no wraparound, cells simply can't
+  be painted, stamped, or born past the edge (drawn as a red boundary line
+  on the canvas), stepped with the standard neighbor-counting algorithm
+  (`O(live cells)` per generation). The size is an exact multiple of
+  `view::MAX_CELL_SIZE` (60px divides it evenly on both axes), so the
+  world's edge always lines up cleanly with the grid at max zoom instead
+  of clipping a partial cell.
 - **Starting configurations**: a "Start" dropdown + "Load" button
   (Simulation row) clears the board and scatters a named setup across the
   *whole* world at the same density the "Random"/density slider controls
@@ -53,34 +55,39 @@ Windows, macOS and Linux from the same codebase.
   pans too (the Blender/Photoshop/Figma convention), so panning is never
   more than one button away regardless of tool.
 - **Collapsible bars, without losing functionality**: a "☰" button
-  (top-left, always visible) hides the pattern-library overlay, and a "⚙"
-  button collapses the Simulation/custom-rule rows down to a single
-  essentials strip (the two toggles, Draw/Pan/Eraser, Play/Pause, Step,
-  Gen/Live). Both toggle back the same way. Neither one hides anything
+  (top-left, always visible) shows/hides the pattern-library overlay
+  (collapsed by default), and a "⚙" button collapses the Simulation/
+  custom-rule rows down to a single essentials strip (the two toggles,
+  Draw/Pan/Eraser, Play/Pause, Step, Gen/Live). Both toggle back the same
+  way. Neither one hides anything
   canvas navigation actually needs — zoom, pan, and the pattern library
   itself all live on/over the canvas (see below) — so collapsing both bars
   fully gives the map maximum room with nothing lost.
 - **The pattern library floats over the canvas, not beside it.** It's an
-  `egui::Area` overlay (top-left corner) rather than a side `Panel`, so
-  showing or hiding it never resizes the canvas — the map's aspect ratio
-  and visible extent stay identical either way. This is most noticeable in
-  a maximized/full-screen window: what you see as "the canvas" is always
-  the true available area, not something that silently shrinks whenever
-  the library is open. Every category is expanded by default, and the
-  panel grows to show them (up to nearly the full canvas height) rather
-  than staying capped short — a lateral scrollbar (pinned to the panel's
-  own right edge, not hugging whichever row happens to be widest) only
-  appears once the expanded content actually overflows that height. Its
-  close button sits in the panel's top-right corner.
-- **The map is always a true, undistorted 16:9 rectangle.** Rather than
-  stretching the world to fill whatever oddly-shaped area the canvas
-  happens to have (window shape minus whatever the bars still take up),
-  the canvas computes the largest exact-16:9 rectangle that fits inside
-  it (`app::fit_aspect_rect`) and renders the entire map — grid, cells,
-  world boundary, all pointer math — through that rectangle alone, letter-
-  or pillar-boxing whichever axis doesn't match with a plain dark margin.
-  The map's proportions are therefore never distorted or ambiguous
-  regardless of window size or which bars are open.
+  `egui::Area` overlay (top-left corner, collapsed by default) rather than
+  a side `Panel`, so showing or hiding it never resizes the canvas — the
+  map's aspect ratio and visible extent stay identical either way. This is
+  most noticeable in a maximized/full-screen window: what you see as "the
+  canvas" is always the true available area, not something that silently
+  shrinks whenever the library is open. Every category is expanded by
+  default, and the panel grows to show them (up to nearly the full canvas
+  height) rather than staying capped short — a lateral scrollbar (pinned
+  to the panel's own right edge, not hugging whichever row happens to be
+  widest) only appears once the expanded content actually overflows that
+  height. Its close button sits in the panel's top-right corner. Scrolling
+  the list (or pinching/Ctrl-scrolling over it) only scrolls the list —
+  egui resolves hover per-layer, so the map underneath doesn't also
+  zoom/pan just because the pointer happens to be over the floating panel.
+- **The map is always a true, undistorted rectangle matching the world's
+  own aspect ratio.** Rather than stretching the world to fill whatever
+  oddly-shaped area the canvas happens to have (window shape minus
+  whatever the bars still take up), the canvas computes the largest
+  rectangle at the world's exact aspect ratio that fits inside it
+  (`app::fit_aspect_rect`) and renders the entire map — grid, cells, world
+  boundary, all pointer math — through that rectangle alone, letter- or
+  pillar-boxing whichever axis doesn't match with a plain dark margin. The
+  map's proportions are therefore never distorted or ambiguous regardless
+  of window size or which bars are open.
 - **The viewport is always fully inside the map.** Panning/zooming is
   clamped (`View::clamp_to_world`) so the visible rectangle can slide right
   up to an edge but never shows empty space beyond it — you can't scroll
@@ -89,7 +96,7 @@ Windows, macOS and Linux from the same codebase.
   map instead.
 - **Minimap**: bottom-right overlay showing the whole plane, a green marker
   per occupied region, and a yellow outline for the current viewport. Sized
-  to the same 16:9 rectangle as the world itself (not a square), so it
+  to the same 2:1 rectangle as the world itself (not a square), so it
   shows the plane shrunk down evenly instead of stretched. Click or drag
   inside it to jump/pan the camera anywhere on the plane instantly — handy
   since the plane is much bigger than what's visible at once.
@@ -164,7 +171,8 @@ src/
 | Zoom | Mouse scroll wheel (anchored on the cursor), pinch gesture (macOS/iOS only — see Known issues), Ctrl + scroll, `+`/`-` keys, or the `+`/`−` buttons in the on-canvas zoom overlay (bottom-left) |
 | Pan by dragging the map | Switch to the "Pan" tool (top bar, always visible), then left-click-drag — like Google Maps. Or middle-click-drag with any tool active |
 | Pan (other ways) | Two-finger trackpad scroll, arrow keys, or click/drag on the minimap |
-| Reclaim canvas space | "☰" button (top-left) hides the pattern-library overlay (doesn't resize the canvas); "⚙" collapses the Simulation/custom-rule rows |
+| Show/hide the pattern library | "☰" button (top-left) — collapsed by default; toggling it never resizes the canvas |
+| Reclaim canvas space | "⚙" collapses the Simulation/custom-rule rows |
 | Jump to a distant part of the plane | Click or drag inside the minimap (bottom-right corner) |
 | Reset the camera | "⟲" button in the on-canvas zoom overlay (bottom-left) |
 | Play / Pause | `Space`, or the button in the top bar |

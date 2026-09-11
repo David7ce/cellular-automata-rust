@@ -14,12 +14,12 @@ const PAN_STEP: f32 = 60.0;
 const SKIP_OPTIONS: &[u32] = &[0, 5, 10, 50, 100, 500, 1000];
 /// On-screen size of the minimap box, anchored to the canvas's bottom-right
 /// corner with `MINIMAP_MARGIN` of breathing room.
-/// The world is a 16:9 rectangle (960x540), not a square, so the minimap
-/// must be too — a square box would non-uniformly stretch the map (and
-/// everything drawn on it: the viewport outline, occupied-chunk markers)
-/// to fill it, distorting proportions instead of just showing the whole
-/// plane shrunk down evenly.
-const MINIMAP_SIZE: Vec2 = Vec2::new(160.0, 90.0);
+/// The world is a 2:1 rectangle (960x480), not a square, so the minimap
+/// must match that same ratio — a mismatched box would non-uniformly
+/// stretch the map (and everything drawn on it: the viewport outline,
+/// occupied-chunk markers) to fill it, distorting proportions instead of
+/// just showing the whole plane shrunk down evenly.
+const MINIMAP_SIZE: Vec2 = Vec2::new(160.0, 80.0);
 const MINIMAP_MARGIN: f32 = 12.0;
 
 /// Which action a left-click/drag on the canvas performs. Mutually
@@ -75,10 +75,11 @@ pub struct App {
     /// explicitly, like `dragging_minimap`, so panning keeps working even if
     /// the cursor slips off the canvas mid-drag).
     middle_pan_active: bool,
-    /// Whether the pattern-library overlay is shown — the "☰" button toggles
-    /// this. It floats on top of the canvas (an `egui::Area`, not a side
-    /// `Panel`) so showing/hiding it never changes the canvas's own size —
-    /// the map's aspect ratio stays correct and full-size either way.
+    /// Whether the pattern-library overlay is shown — starts collapsed, the
+    /// "☰" button toggles it. It floats on top of the canvas (an
+    /// `egui::Area`, not a side `Panel`) so showing/hiding it never changes
+    /// the canvas's own size — the map's aspect ratio stays correct and
+    /// full-size either way.
     show_side_panel: bool,
     /// Whether the Simulation/custom-rule control rows are shown below the
     /// always-visible essentials — the "⚙" button toggles this, collapsing
@@ -110,7 +111,7 @@ impl App {
             canvas_size: Vec2::new(800.0, 600.0),
             dragging_minimap: false,
             middle_pan_active: false,
-            show_side_panel: true,
+            show_side_panel: false,
             show_extra_controls: true,
         }
     }
@@ -363,12 +364,13 @@ impl App {
                     // panel's right edge, not hugging the widest row's
                     // content) while still only growing as tall as the
                     // (now default-open) categories' content needs, up to
-                    // `max_height` — most of the canvas's height, so the
-                    // library can actually grow to show everything at once
-                    // instead of being capped short.
+                    // `max_height` — nearly the whole canvas height minus a
+                    // small allowance for the heading/cancel row above it,
+                    // so the library can actually grow open to show
+                    // everything at once instead of being capped short.
                     egui::ScrollArea::vertical()
                         .auto_shrink([false, true])
-                        .max_height((canvas_rect.height() - 3.0 * MINIMAP_MARGIN - 70.0).max(240.0))
+                        .max_height((canvas_rect.height() - 90.0).max(300.0))
                         .show(ui, |ui| {
                             for category in Category::ALL {
                                 egui::CollapsingHeader::new(category.label()).default_open(true).show(ui, |ui| {
@@ -426,45 +428,56 @@ impl App {
                 .or(pointer_local)
                 .unwrap_or(map_rect.size() / 2.0);
 
-            // Pinch-to-zoom (touch pinch or ctrl+scroll), anchored on the gesture/pointer.
-            let zoom_delta = ctx.input(|i| i.zoom_delta());
-            if zoom_delta != 1.0 {
-                self.view.zoom(zoom_delta, zoom_anchor, min_cell_size);
-            }
-
-            // Device-aware scroll, like a desktop map app: a physical mouse
-            // wheel (discrete "line" steps) zooms anchored on the cursor —
-            // the classic Google Maps behavior — while a trackpad's smooth,
-            // continuous scrolling pans freely in both directions, like
-            // panning a map on a phone or tablet. egui tags every scroll
-            // event with which of these it came from (`MouseWheelUnit`), so
-            // reading raw events instead of the pre-merged `scroll_delta`
-            // lets the two devices drive genuinely different actions instead
-            // of fighting over one. Ctrl/Cmd+scroll is left alone here since
-            // `zoom_delta` above already handles it.
-            let mut line_wheel_notches = 0.0f32;
-            let mut trackpad_pan_delta = Vec2::ZERO;
-            ctx.input(|i| {
-                for event in &i.events {
-                    let &egui::Event::MouseWheel { unit, delta, modifiers, .. } = event else {
-                        continue;
-                    };
-                    if modifiers.ctrl || modifiers.command || modifiers.mac_cmd {
-                        continue;
-                    }
-                    match unit {
-                        egui::MouseWheelUnit::Line | egui::MouseWheelUnit::Page => {
-                            line_wheel_notches += if delta.y != 0.0 { delta.y } else { delta.x };
-                        }
-                        egui::MouseWheelUnit::Point => trackpad_pan_delta += delta,
-                    }
+            // All pointer-driven zoom/pan below is gated on the canvas
+            // actually being the topmost thing under the pointer right now
+            // (egui resolves this per-layer, so it's automatically `false`
+            // while the pointer is over the pattern-library overlay or any
+            // other floating Area). Unlike click/drag — which egui already
+            // routes to only the topmost widget — a pinch gesture or a raw
+            // `Event::MouseWheel` isn't tied to a specific widget, so
+            // without this check scrolling the pattern library's list would
+            // also zoom/pan the map underneath it.
+            if response.hover_pos().is_some() {
+                // Pinch-to-zoom (touch pinch or ctrl+scroll), anchored on the gesture/pointer.
+                let zoom_delta = ctx.input(|i| i.zoom_delta());
+                if zoom_delta != 1.0 {
+                    self.view.zoom(zoom_delta, zoom_anchor, min_cell_size);
                 }
-            });
-            if line_wheel_notches != 0.0 {
-                self.view.zoom(KEY_ZOOM_STEP.powf(line_wheel_notches), zoom_anchor, min_cell_size);
-            }
-            if trackpad_pan_delta != Vec2::ZERO {
-                self.view.pan(trackpad_pan_delta);
+
+                // Device-aware scroll, like a desktop map app: a physical mouse
+                // wheel (discrete "line" steps) zooms anchored on the cursor —
+                // the classic Google Maps behavior — while a trackpad's smooth,
+                // continuous scrolling pans freely in both directions, like
+                // panning a map on a phone or tablet. egui tags every scroll
+                // event with which of these it came from (`MouseWheelUnit`), so
+                // reading raw events instead of the pre-merged `scroll_delta`
+                // lets the two devices drive genuinely different actions instead
+                // of fighting over one. Ctrl/Cmd+scroll is left alone here since
+                // `zoom_delta` above already handles it.
+                let mut line_wheel_notches = 0.0f32;
+                let mut trackpad_pan_delta = Vec2::ZERO;
+                ctx.input(|i| {
+                    for event in &i.events {
+                        let &egui::Event::MouseWheel { unit, delta, modifiers, .. } = event else {
+                            continue;
+                        };
+                        if modifiers.ctrl || modifiers.command || modifiers.mac_cmd {
+                            continue;
+                        }
+                        match unit {
+                            egui::MouseWheelUnit::Line | egui::MouseWheelUnit::Page => {
+                                line_wheel_notches += if delta.y != 0.0 { delta.y } else { delta.x };
+                            }
+                            egui::MouseWheelUnit::Point => trackpad_pan_delta += delta,
+                        }
+                    }
+                });
+                if line_wheel_notches != 0.0 {
+                    self.view.zoom(KEY_ZOOM_STEP.powf(line_wheel_notches), zoom_anchor, min_cell_size);
+                }
+                if trackpad_pan_delta != Vec2::ZERO {
+                    self.view.pan(trackpad_pan_delta);
+                }
             }
 
             // Middle-mouse-button drag always pans, regardless of the active
