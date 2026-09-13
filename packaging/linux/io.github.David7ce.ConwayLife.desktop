@@ -1,8 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Game of Life
-Comment=Conway's Game of Life and other Life-like cellular automata
-Exec=conway_life
-Icon=io.github.David7ce.ConwayLife
-Terminal=false
-Categories=Game;Science;

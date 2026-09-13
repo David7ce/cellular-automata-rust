@@ -1,0 +1,31 @@
+{
+    "app-id": "io.github.David7ce.CellularAutomata",
+    "runtime": "org.freedesktop.Platform",
+    "runtime-version": "24.08",
+    "sdk": "org.freedesktop.Sdk",
+    "command": "cellular_automata",
+    "finish-args": [
+        "--share=ipc",
+        "--socket=fallback-x11",
+        "--socket=wayland",
+        "--device=dri"
+    ],
+    "modules": [
+        {
+            "name": "cellular-automata",
+            "buildsystem": "simple",
+            "build-commands": [
+                "install -Dm755 cellular_automata /app/bin/cellular_automata",
+                "install -Dm644 io.github.David7ce.CellularAutomata.desktop /app/share/applications/io.github.David7ce.CellularAutomata.desktop",
+                "install -Dm644 icon.png /app/share/icons/hicolor/256x256/apps/io.github.David7ce.CellularAutomata.png",
+                "install -Dm644 io.github.David7ce.CellularAutomata.metainfo.xml /app/share/metainfo/io.github.David7ce.CellularAutomata.metainfo.xml"
+            ],
+            "sources": [
+                { "type": "file", "path": "cellular_automata" },
+                { "type": "file", "path": "io.github.David7ce.CellularAutomata.desktop" },
+                { "type": "file", "path": "icon.png" },
+                { "type": "file", "path": "io.github.David7ce.CellularAutomata.metainfo.xml" }
+            ]
+        }
+    ]
+}

@@ -1,9 +1,12 @@
-# Game of Life (Rust, cross-platform)
+# Cellular Automata (Rust, cross-platform)
 
-A native desktop implementation of Conway's Game of Life and other
-Life-like cellular automata, built with [egui](https://github.com/emilk/egui) /
+A native desktop sandbox for Life-like cellular automata, built with
+[egui](https://github.com/emilk/egui) /
 [eframe](https://github.com/emilk/egui/tree/main/crates/eframe). Runs on
-Windows, macOS and Linux from the same codebase.
+Windows, macOS and Linux from the same codebase. Conway's Game of Life
+(B3/S23) is one of 22 built-in rules — the whole point of the generic B/S
+rule engine below is that Conway's is a single variant, not the app's
+identity.
 
 ## Features
 
@@ -193,14 +196,15 @@ Requires a Rust toolchain (installed here via `rustup`, stable channel).
 
 ```bash
 cargo build --release
-./target/release/conway_life          # Linux/macOS
+./target/release/cellular_automata          # Linux/macOS
 # or just:
 cargo run --release
 ```
 
-A desktop shortcut was created at `~/Desktop/GameOfLife.desktop` pointing at
-the release binary. Depending on your desktop environment you may need to
-right-click it once and choose "Allow Launching" / "Trust" the first time.
+A desktop shortcut was created at `~/Desktop/CellularAutomata.desktop`
+pointing at the release binary. Depending on your desktop environment you
+may need to right-click it once and choose "Allow Launching" / "Trust"
+the first time.
 
 The code only depends on cross-platform crates (`eframe`, `rand`) with no
 OS-specific APIs, so it builds equally on Windows and macOS — only Linux

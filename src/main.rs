@@ -17,7 +17,7 @@ fn main() -> eframe::Result<()> {
         ..Default::default()
     };
     eframe::run_native(
-        "Game of Life",
+        "Cellular Automata",
         options,
         Box::new(|_cc| Ok(Box::new(app::App::new()))),
     )

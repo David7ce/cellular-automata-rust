@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Cellular Automata
+Comment=A sandbox for Conway's Game of Life and other Life-like cellular automata
+Exec=cellular_automata
+Icon=io.github.David7ce.CellularAutomata
+Terminal=false
+Categories=Game;Science;

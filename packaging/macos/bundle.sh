@@ -1,8 +1,8 @@
 #!/bin/bash
-# Builds ConwayLife.app, then a DMG and ZIP of it, from an already-built
-# release binary. macOS-only (sips/iconutil/hdiutil/codesign). Run from the
-# repo root, e.g.:
-#   packaging/macos/bundle.sh target/release/conway_life 0.2.0 macOS-arm64
+# Builds CellularAutomata.app, then a DMG and ZIP of it, from an
+# already-built release binary. macOS-only (sips/iconutil/hdiutil/
+# codesign). Run from the repo root, e.g.:
+#   packaging/macos/bundle.sh target/release/cellular_automata 0.2.0 macOS-arm64
 #
 # Used by .github/workflows/release.yml for both the arm64 and Intel
 # builds, which only differ in which binary they hand this script.
@@ -12,11 +12,11 @@ BINARY="$1"
 APP_VERSION="$2"
 ARCH_LABEL="$3"
 
-APP="ConwayLife.app"
+APP="CellularAutomata.app"
 rm -rf "$APP" icon.iconset dmg_temp
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BINARY" "$APP/Contents/MacOS/GameOfLife"
-chmod +x "$APP/Contents/MacOS/GameOfLife"
+cp "$BINARY" "$APP/Contents/MacOS/CellularAutomata"
+chmod +x "$APP/Contents/MacOS/CellularAutomata"
 
 # Build the .icns from the 1024px master with macOS's own icon tools.
 mkdir -p icon.iconset
@@ -32,12 +32,12 @@ cat >"$APP/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>Game of Life</string>
-  <key>CFBundleDisplayName</key><string>Game of Life</string>
-  <key>CFBundleIdentifier</key><string>io.github.David7ce.ConwayLife</string>
+  <key>CFBundleName</key><string>Cellular Automata</string>
+  <key>CFBundleDisplayName</key><string>Cellular Automata</string>
+  <key>CFBundleIdentifier</key><string>io.github.David7ce.CellularAutomata</string>
   <key>CFBundleVersion</key><string>$APP_VERSION</string>
   <key>CFBundleShortVersionString</key><string>$APP_VERSION</string>
-  <key>CFBundleExecutable</key><string>GameOfLife</string>
+  <key>CFBundleExecutable</key><string>CellularAutomata</string>
   <key>CFBundleIconFile</key><string>icon.icns</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>NSHighResolutionCapable</key><true/>
@@ -55,9 +55,9 @@ cp -R "$APP" dmg_temp/
 ln -s /Applications dmg_temp/Applications
 
 for _ in 1 2 3; do
-  hdiutil create -volname "Game of Life" -srcfolder dmg_temp -ov -format UDZO \
-    "dist/ConwayLife-$APP_VERSION-$ARCH_LABEL.dmg" && break
+  hdiutil create -volname "Cellular Automata" -srcfolder dmg_temp -ov -format UDZO \
+    "dist/CellularAutomata-$APP_VERSION-$ARCH_LABEL.dmg" && break
   sleep 3
 done
 
-zip -ry "dist/ConwayLife-$APP_VERSION-$ARCH_LABEL.zip" "$APP"
+zip -ry "dist/CellularAutomata-$APP_VERSION-$ARCH_LABEL.zip" "$APP"

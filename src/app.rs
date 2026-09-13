@@ -359,6 +359,28 @@ impl App {
                             }
                         });
                     });
+                    // These category names (still life/oscillator/spaceship/
+                    // gun/methuselah) describe how each shape behaves
+                    // specifically *under Conway's Life* (B3/S23) — that's
+                    // the rule the whole naming convention comes from. A
+                    // "gun" only actually keeps emitting gliders forever
+                    // under a rule where gliders are stable/periodic; stamp
+                    // the same cells under a different rule (say, an
+                    // explosive or chaotic one) and they just evolve as
+                    // whatever that rule does with them, not necessarily
+                    // anything glider- or gun-like. Only shown when it's
+                    // actually relevant, i.e. some other rule is active.
+                    if self.preset_name != "Conway's Life" {
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "⚠ Names below describe behavior under Conway's Life — the active \"{}\" rule may not preserve it.",
+                                self.preset_name
+                            ))
+                            .small()
+                            .italics()
+                            .color(Color32::from_rgb(220, 180, 90)),
+                        );
+                    }
                     if self.selected_pattern.is_some() {
                         ui.horizontal(|ui| {
                             ui.label("Click canvas to place. ");

@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────
-#  Game of Life — Multi-Platform Release Builder
+#  Cellular Automata — Multi-Platform Release Builder
 #
 #  Builds:
 #    - Linux:   AppImage & tar.gz, plus a Flatpak bundle (x86_64)
@@ -93,32 +93,32 @@ jobs:
             -o appimagetool
           chmod +x appimagetool
 
-          APP=ConwayLife.AppDir
+          APP=CellularAutomata.AppDir
           mkdir -p "$APP"
-          cp target/release/conway_life "$APP/"
-          cp packaging/icons/icon.png "$APP/io.github.David7ce.ConwayLife.png"
-          cp packaging/linux/io.github.David7ce.ConwayLife.desktop "$APP/"
-          printf '#!/bin/sh\ncd "$(dirname "$0")"\nexec ./conway_life "$@"\n' > "$APP/AppRun"
+          cp target/release/cellular_automata "$APP/"
+          cp packaging/icons/icon.png "$APP/io.github.David7ce.CellularAutomata.png"
+          cp packaging/linux/io.github.David7ce.CellularAutomata.desktop "$APP/"
+          printf '#!/bin/sh\ncd "$(dirname "$0")"\nexec ./cellular_automata "$@"\n' > "$APP/AppRun"
           chmod +x "$APP/AppRun"
 
           mkdir -p dist
           ARCH=x86_64 ./appimagetool --appimage-extract-and-run "$APP" \
-            "dist/ConwayLife-$APP_VERSION-Linux-x86_64.AppImage"
-          tar -czvf "dist/ConwayLife-$APP_VERSION-Linux-x86_64.tar.gz" -C target/release conway_life
+            "dist/CellularAutomata-$APP_VERSION-Linux-x86_64.AppImage"
+          tar -czvf "dist/CellularAutomata-$APP_VERSION-Linux-x86_64.tar.gz" -C target/release cellular_automata
 
       - name: Upload Linux Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ConwayLife-Linux-x64
+          name: CellularAutomata-Linux-x64
           path: |
-            dist/ConwayLife-*-Linux-x86_64.AppImage
-            dist/ConwayLife-*-Linux-x86_64.tar.gz
+            dist/CellularAutomata-*-Linux-x86_64.AppImage
+            dist/CellularAutomata-*-Linux-x86_64.tar.gz
 
       - name: Upload raw Linux binary (for the Flatpak job)
         uses: actions/upload-artifact@v4
         with:
           name: linux-binary
-          path: target/release/conway_life
+          path: target/release/cellular_automata
           if-no-files-found: error
 
   # ─── Linux (Flatpak) ──────────────────────────────────────────────────────
@@ -142,26 +142,26 @@ jobs:
           path: flatpak
 
       - name: Fix binary executable permission
-        run: chmod +x flatpak/conway_life
+        run: chmod +x flatpak/cellular_automata
 
       - name: Stamp version into Flatpak metainfo
         run: |
           sed -i \
             "s|<release version=\"[^\"]*\" date=\"[^\"]*\" />|<release version=\"${{ needs.version.outputs.version }}\" date=\"$(date -u +%Y-%m-%d)\" />|" \
-            flatpak/io.github.David7ce.ConwayLife.metainfo.xml
+            flatpak/io.github.David7ce.CellularAutomata.metainfo.xml
 
       - name: Build Flatpak
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
-          bundle: ConwayLife-${{ needs.version.outputs.version }}-Linux-x86_64.flatpak
-          manifest-path: flatpak/io.github.David7ce.ConwayLife.json
-          cache-key: flatpak-builder-${{ hashFiles('flatpak/io.github.David7ce.ConwayLife.json') }}
+          bundle: CellularAutomata-${{ needs.version.outputs.version }}-Linux-x86_64.flatpak
+          manifest-path: flatpak/io.github.David7ce.CellularAutomata.json
+          cache-key: flatpak-builder-${{ hashFiles('flatpak/io.github.David7ce.CellularAutomata.json') }}
 
       - name: Upload Flatpak Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ConwayLife-Linux-Flatpak
-          path: ConwayLife-*-Linux-x86_64.flatpak
+          name: CellularAutomata-Linux-Flatpak
+          path: CellularAutomata-*-Linux-x86_64.flatpak
           if-no-files-found: error
 
   # ─── Windows (Installer & Portable) ──────────────────────────────────────
@@ -205,16 +205,16 @@ jobs:
           APP_VERSION: ${{ needs.version.outputs.version }}
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item target\release\conway_life.exe GameOfLife.exe
-          Compress-Archive -Path GameOfLife.exe -DestinationPath "dist\ConwayLife-$env:APP_VERSION-Windows-Portable.zip"
+          Copy-Item target\release\cellular_automata.exe CellularAutomata.exe
+          Compress-Archive -Path CellularAutomata.exe -DestinationPath "dist\CellularAutomata-$env:APP_VERSION-Windows-Portable.zip"
 
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ConwayLife-Windows
+          name: CellularAutomata-Windows
           path: |
-            dist/ConwayLife-*-Windows-Setup.exe
-            dist/ConwayLife-*-Windows-Portable.zip
+            dist/CellularAutomata-*-Windows-Setup.exe
+            dist/CellularAutomata-*-Windows-Portable.zip
 
   # ─── macOS (Apple Silicon ARM64) ─────────────────────────────────────────
   macos-arm64:
@@ -241,15 +241,15 @@ jobs:
       - name: Package as .app, DMG & ZIP
         env:
           APP_VERSION: ${{ needs.version.outputs.version }}
-        run: packaging/macos/bundle.sh target/release/conway_life "$APP_VERSION" macOS-arm64
+        run: packaging/macos/bundle.sh target/release/cellular_automata "$APP_VERSION" macOS-arm64
 
       - name: Upload macOS ARM64 Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ConwayLife-macOS-arm64
+          name: CellularAutomata-macOS-arm64
           path: |
-            dist/ConwayLife-*-macOS-arm64.dmg
-            dist/ConwayLife-*-macOS-arm64.zip
+            dist/CellularAutomata-*-macOS-arm64.dmg
+            dist/CellularAutomata-*-macOS-arm64.zip
 
   # ─── macOS (Intel x86_64) ─────────────────────────────────────────────────
   macos-intel:
@@ -278,15 +278,15 @@ jobs:
       - name: Package as .app, DMG & ZIP
         env:
           APP_VERSION: ${{ needs.version.outputs.version }}
-        run: packaging/macos/bundle.sh target/x86_64-apple-darwin/release/conway_life "$APP_VERSION" macOS-intel
+        run: packaging/macos/bundle.sh target/x86_64-apple-darwin/release/cellular_automata "$APP_VERSION" macOS-intel
 
       - name: Upload macOS Intel Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ConwayLife-macOS-intel
+          name: CellularAutomata-macOS-intel
           path: |
-            dist/ConwayLife-*-macOS-intel.dmg
-            dist/ConwayLife-*-macOS-intel.zip
+            dist/CellularAutomata-*-macOS-intel.dmg
+            dist/CellularAutomata-*-macOS-intel.zip
 
   # ─── Create / Publish GitHub Release ──────────────────────────────────────
   release:
@@ -324,7 +324,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}
-          name: "Game of Life ${{ github.event.inputs.release_tag || github.ref_name }}"
+          name: "Cellular Automata ${{ github.event.inputs.release_tag || github.ref_name }}"
           draft: false
           generate_release_notes: true
           fail_on_unmatched_files: true
