@@ -3,6 +3,62 @@
 Changelog of shipped work, newest first. For what's planned next, see
 [ROADMAP.md](ROADMAP.md).
 
+## Update — 2026-09-13 (later: pattern library rows are fully clickable)
+
+"selecting a block from the collection of block should hover and do
+selection of all the row like input radio that is reachable outside the
+radio button" — the pattern library's rows previously had two separate
+click targets (the 36px icon via `allocate_exact_size`, and a
+`selectable_label` sized to the text) with a dead, unresponsive gap
+between them and no fill past the label's own width. Replaced both with a
+single `pattern_row` helper: one `allocate_exact_size` spanning the *full*
+available row width, with the icon and name painted manually inside it
+and a hover/selected background (`ui.style().interact_selectable`) filling
+the entire row — clicking or hovering anywhere across the row selects it,
+not just exactly on the icon or the text, the same "generous click target"
+idea already applied to the Rule dropdown's rows a few updates back.
+
+`cargo test` (9/9, unaffected — pure UI) and `cargo clippy --all-targets`
+clean; release rebuilt.
+
+## Update — 2026-09-13 (rebrand to "Cellular Automata"; master → main)
+
+Three follow-ups: "the game should be 'Cellular Automata' because Game of
+Life is one of the variants", "rename git branch from master to main to
+follow the new standard", and a note that pattern-library category names
+(still life/oscillator/spaceship/gun/methuselah) are really Conway's-Life-
+specific classifications, not universal across every rule.
+
+**Branch renamed.** Local `master` → `main`, pushed, set as the GitHub
+default branch, old `master` deleted from the remote.
+
+**Rebranded as "Cellular Automata."** The window title and package name
+still said "Game of Life" even though Conway's Life (B3/S23) is one of 22
+built-in rules the engine supports — the repo itself is already named
+`celular-automata-rust`, which the app's own identity now actually
+matches. Renamed throughout: `Cargo.toml`'s package name (`conway_life` →
+`cellular_automata`, which also renames the built binary and updates
+`Cargo.lock`), the window title, README, every packaging file (`.desktop`
+entries, the Flatpak manifest/metainfo/app-id —
+`io.github.David7ce.ConwayLife` → `.CellularAutomata`, files renamed to
+match — the Inno Setup installer, the macOS bundle script), every
+artifact/asset name in `.github/workflows/release.yml`, and the local
+`~/Desktop` shortcut. `docs/RELEASES.md`'s *historical* entries (below)
+are deliberately left saying "Game of Life"/`conway_life` — a changelog
+preserves what things were actually called at the time, not what they're
+called now.
+
+**Pattern-library disclaimer added.** A "gun" only keeps emitting gliders
+forever because Conway's Life happens to make gliders stable/periodic —
+stamp the exact same cells while an explosive or chaotic rule is active
+and they just evolve as whatever that rule does with them, not
+necessarily anything gun- or glider-like. Added a small warning in the
+pattern library overlay explaining this, shown only when a non-Conway's-
+Life rule is actually the active one (so it says nothing in the common
+case where the classifications are accurate).
+
+`cargo test` (9/9) and `cargo clippy --all-targets` clean; release
+rebuilt as `target/release/cellular_automata`.
 
 ## Update — 2026-09-12 (later still: library starts collapsed, real scroll-bleed fix, wider world)
 

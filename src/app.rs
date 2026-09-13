@@ -409,19 +409,11 @@ impl App {
                                         if pattern.category != category {
                                             continue;
                                         }
-                                        ui.horizontal(|ui| {
-                                            let (rect, response) =
-                                                ui.allocate_exact_size(Vec2::new(36.0, 36.0), Sense::click());
-                                            paint_pattern_preview(ui.painter(), rect, &pattern.cells);
-                                            let label = ui.selectable_label(
-                                                self.selected_pattern == Some(idx),
-                                                pattern.name,
-                                            );
-                                            if response.clicked() || label.clicked() {
-                                                self.selected_pattern = Some(idx);
-                                                self.tool = Tool::Draw;
-                                            }
-                                        });
+                                        let selected = self.selected_pattern == Some(idx);
+                                        if pattern_row(ui, selected, &pattern.cells, pattern.name).clicked() {
+                                            self.selected_pattern = Some(idx);
+                                            self.tool = Tool::Draw;
+                                        }
                                     }
                                 });
                             }
@@ -863,6 +855,33 @@ fn line_cells(a: Cell, b: Cell) -> Vec<Cell> {
         }
     }
     cells
+}
+
+/// One row in the pattern library: a preview icon plus a name, where the
+/// *entire row* — full available width, not just the small icon or exactly
+/// the text — is one hoverable/clickable target. Like a radio button whose
+/// reachable area extends across its whole row instead of stopping at the
+/// tiny circle, so picking a pattern doesn't need aiming precisely at a
+/// narrow icon or a short label.
+fn pattern_row(ui: &mut egui::Ui, selected: bool, cells: &[(i32, i32)], name: &str) -> egui::Response {
+    let icon_size = 36.0;
+    let (rect, response) = ui.allocate_exact_size(Vec2::new(ui.available_width(), icon_size), Sense::click());
+
+    let visuals = ui.style().interact_selectable(&response, selected);
+    ui.painter().rect_filled(rect, visuals.corner_radius, visuals.weak_bg_fill);
+
+    let icon_rect = Rect::from_min_size(rect.min, Vec2::splat(icon_size));
+    paint_pattern_preview(ui.painter(), icon_rect, cells);
+
+    ui.painter().text(
+        Pos2::new(icon_rect.max.x + 8.0, rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        name,
+        egui::TextStyle::Body.resolve(ui.style()),
+        visuals.text_color(),
+    );
+
+    response
 }
 
 fn paint_pattern_preview(painter: &egui::Painter, rect: Rect, cells: &[(i32, i32)]) {

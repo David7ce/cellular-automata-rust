@@ -139,8 +139,10 @@ identity.
 - **Pattern library**: 35 well-known patterns across 5 categories (still
   lifes, oscillators, spaceships, guns, methuselahs), decoded from standard
   RLE strings verified against LifeWiki and stamped onto the canvas on
-  click. A regression test (`cargo test`) checks every pattern's cell count
-  against its documented population.
+  click. Each row's full width — icon and name together, not just one or
+  the other — is a single hoverable/clickable target, comfortable to reach
+  without aiming precisely. A regression test (`cargo test`) checks every
+  pattern's cell count against its documented population.
 - **Freehand drawing**: click a single cell, or press-and-drag to paint (or
   erase, if the stroke starts on a live cell) a trail of cells.
 - **Generation skipping**: a "Skip" dropdown (0/5/10/50/100/500/1000) lets
