@@ -4,20 +4,17 @@ use crate::patterns::Pattern;
 use crate::simulation::{SimState, WORLD_MAX, WORLD_MIN};
 
 /// Named starting layouts the user can load in one action instead of
-/// stamping/painting a fresh board by hand every time. Every option here
-/// (besides "Empty board") is a density-based scatter across the whole
-/// world rather than a single fixed figure or a hardcoded instance count,
-/// so the same density slider that drives "Random soup" also controls how
-/// crowded a "Glider field" or "Pulsar field" comes out. Reuses the pattern
-/// library's cell data rather than duplicating RLE strings here, so a fix
-/// to a pattern's shape automatically applies to any start built from it.
-pub const START_CONFIGS: &[&str] = &[
-    "Empty board",
-    "Random soup",
-    "Glider field",
-    "Gosper gun field",
-    "Pulsar field",
-];
+/// stamping/painting a fresh board by hand every time. Every option here is
+/// a density-based scatter across the whole world rather than a single
+/// fixed figure or a hardcoded instance count, so the same density slider
+/// that drives "Random soup" also controls how crowded a "Glider field" or
+/// "Pulsar field" comes out. There's no "Empty board" entry — clearing the
+/// board already has its own dedicated button, and nothing is selected by
+/// default (see `App::selected_start`), so loading a start is always a
+/// deliberate choice, not an accidental no-op. Reuses the pattern library's
+/// cell data rather than duplicating RLE strings here, so a fix to a
+/// pattern's shape automatically applies to any start built from it.
+pub const START_CONFIGS: &[&str] = &["Random soup", "Glider field", "Gosper gun field", "Pulsar field"];
 
 /// Clears the board, then lays out `name` across the whole world at
 /// `density`.
@@ -28,7 +25,7 @@ pub fn apply(sim: &mut SimState, name: &str, library: &[Pattern], density: f32) 
         "Glider field" => scatter(sim, library, "Glider", 24, density),
         "Gosper gun field" => scatter(sim, library, "Gosper Glider Gun", 60, density),
         "Pulsar field" => scatter(sim, library, "Pulsar", 24, density),
-        // "Empty board" (or anything unrecognized) just leaves the cleared board.
+        // Any unrecognized name just leaves the cleared board.
         _ => {}
     }
 }
@@ -82,10 +79,10 @@ mod tests {
     }
 
     #[test]
-    fn empty_board_clears_and_places_nothing() {
+    fn unrecognized_name_still_clears_and_places_nothing() {
         let (mut sim, library) = empty_sim_and_library();
         sim.stamp(&[(0, 0)], (0, 0));
-        apply(&mut sim, "Empty board", &library, 1.0);
+        apply(&mut sim, "not a real start config", &library, 1.0);
         assert!(sim.live.is_empty());
     }
 

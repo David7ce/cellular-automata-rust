@@ -17,7 +17,8 @@ Windows, macOS and Linux from the same codebase.
   Replicator, Seeds, Serviettes, Stains, Walled Cities. The "Rule" dropdown
   groups them by long-term random-soup behavior — Chaotic / Explosive /
   Stable section headers, presets indented underneath — instead of one flat
-  22-entry list with the class as a same-line suffix on every row. Plus 9
+  22-entry list with the class as a same-line suffix on every row. Each row
+  is clickable/highlighted across its full width, not just the text. Plus 9
   Birth / 9 Survive checkboxes to build any custom rule by hand.
 - **Finite 960x480 plane** (2:1 — wider than plain 16:9, chosen to better
   match the canvas's actual usable shape once the top bar's height is
@@ -34,13 +35,15 @@ Windows, macOS and Linux from the same codebase.
 - **Starting configurations**: a "Start" dropdown + "Load" button
   (Simulation row) clears the board and scatters a named setup across the
   *whole* world at the same density the "Random"/density slider controls
-  — Empty board, Random soup (individual cells), Glider field, Gosper gun
-  field, Pulsar field. Every option besides Empty board is density-based
-  (a lattice of candidate spots across the map, each independently filled
-  with probability = density) rather than a single fixed figure or a
-  hardcoded instance count, so "how crowded" is always adjustable the same
-  way for every option. Built from the pattern library's own cell data
-  (`src/starts.rs`), so a fix to a pattern's shape automatically carries
+  — Random soup (individual cells), Glider field, Gosper gun field, Pulsar
+  field. Nothing is pre-selected (there's no "Empty board" entry — Clear
+  already does that job), so Load stays disabled until you deliberately
+  pick one. Every option is density-based (a lattice of candidate spots
+  across the map, each independently filled with probability = density)
+  rather than a single fixed figure or a hardcoded instance count, so "how
+  crowded" is always adjustable the same way for every option. Built from
+  the pattern library's own cell data (`src/starts.rs`), so a fix to a
+  pattern's shape automatically carries
   through to any start built from it.
 - **Three-way toolbox** (top bar, always visible next to Play/Pause/Step):
   Draw / Pan / Eraser, mutually exclusive. Draw is the default
@@ -78,16 +81,15 @@ Windows, macOS and Linux from the same codebase.
   the list (or pinching/Ctrl-scrolling over it) only scrolls the list —
   egui resolves hover per-layer, so the map underneath doesn't also
   zoom/pan just because the pointer happens to be over the floating panel.
-- **The map is always a true, undistorted rectangle matching the world's
-  own aspect ratio.** Rather than stretching the world to fill whatever
-  oddly-shaped area the canvas happens to have (window shape minus
-  whatever the bars still take up), the canvas computes the largest
-  rectangle at the world's exact aspect ratio that fits inside it
-  (`app::fit_aspect_rect`) and renders the entire map — grid, cells, world
-  boundary, all pointer math — through that rectangle alone, letter- or
-  pillar-boxing whichever axis doesn't match with a plain dark margin. The
-  map's proportions are therefore never distorted or ambiguous regardless
-  of window size or which bars are open.
+- **The canvas grid adapts to whatever space is actually available** —
+  the window's own shape minus the top bar, nothing more — instead of
+  being locked to a fixed aspect ratio, so there's no black letterbox or
+  pillarbox margin above/below or beside the grid. Cells are still always
+  perfect squares (`View::cell_size` is one scalar shared by both axes,
+  never stretched per-axis); the axis with more canvas room than the
+  world needs simply shows more of it, clamped exactly at the world's edge
+  by `View::clamp_to_world` (drawn as a red boundary line), the same as
+  any other axis.
 - **The viewport is always fully inside the map.** Panning/zooming is
   clamped (`View::clamp_to_world`) so the visible rectangle can slide right
   up to an edge but never shows empty space beyond it — you can't scroll
@@ -201,9 +203,27 @@ the release binary. Depending on your desktop environment you may need to
 right-click it once and choose "Allow Launching" / "Trust" the first time.
 
 The code only depends on cross-platform crates (`eframe`, `rand`) with no
-OS-specific APIs, so `cargo build --release` should also produce a working
-binary on Windows and macOS — only Linux has been built/run in this
-environment so far.
+OS-specific APIs, so it builds equally on Windows and macOS — only Linux
+has actually been built/run by hand in this environment, but
+`.github/workflows/ci.yml` builds, tests, and lints on every push, and
+`.github/workflows/release.yml` builds real installers for all three
+desktop platforms on their native runners (see below).
+
+## Installers
+
+Pushing a `v*` tag (or running the release workflow manually from the
+Actions tab) builds and publishes, via GitHub Releases:
+
+| Platform | Artifacts |
+|---|---|
+| Linux | AppImage, `.tar.gz`, and a Flatpak bundle |
+| Windows | An Inno Setup installer (`.exe`) and a portable `.zip` |
+| macOS | `.dmg` and `.zip`, for both Apple Silicon and Intel |
+
+The packaging sources live under `packaging/` (icons, the Inno Setup
+script, the macOS `.app`/DMG bundling script) and `flatpak/` (the Flatpak
+manifest and AppStream metadata). Android is not built here — see
+`docs/ROADMAP.md` for why and what it would take.
 
 ## Known issues
 
@@ -217,4 +237,6 @@ environment so far.
   everywhere regardless of gesture support. Two-finger trackpad scrolling
   to pan works on Linux — it arrives as an ordinary high-resolution
   scroll-wheel event tagged `MouseWheelUnit::Point`, not a special gesture.
-- See `ROADMAP.md` for what's next.
+- See [`docs/ROADMAP.md`](docs/ROADMAP.md) for what's next, or
+  [`docs/RELEASES.md`](docs/RELEASES.md) for a changelog of everything
+  already shipped.
