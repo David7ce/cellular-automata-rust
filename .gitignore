@@ -1,9 +1,10 @@
-.claude/
-/target
 .agent/
-/dist
-builddir/
+.claude/
 .flatpak-builder/
+/builddir/
+/dist
+/target
+/vendor/
 flatpak/.flatpak-builder/
 flatpak/repo/
 flatpak/cellular_automata
