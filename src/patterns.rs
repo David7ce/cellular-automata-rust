@@ -119,9 +119,35 @@ pub fn library() -> Vec<Pattern> {
         .collect()
 }
 
+pub fn transform_cells(cells: &[(i32, i32)], turns: u8, flip_x: bool) -> Vec<(i32, i32)> {
+    let turns = turns % 4;
+    cells
+        .iter()
+        .map(|&(x, y)| {
+            let (x, y) = match turns {
+                0 => (x, y),
+                1 => (y, -x),
+                2 => (-x, -y),
+                3 => (-y, x),
+                _ => unreachable!(),
+            };
+            let x = if flip_x { -x } else { x };
+            (x, y)
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn selected_pattern_transform_flips_and_rotates_cells_consistently() {
+        let cells = [(0, 0), (1, 0), (0, 1)];
+        let transformed = transform_cells(&cells, 1, true);
+        assert_eq!(transformed, vec![(0, 0), (0, -1), (-1, 0)]);
+    }
+
 
     /// Every pattern's cell count checked against its well-known population
     /// (a LifeWiki-documented fact for each), independent of the exact

@@ -67,6 +67,10 @@ pub struct App {
     /// `None` by default — nothing is pre-selected, so "Load" is disabled
     /// until the user deliberately picks one.
     selected_start: Option<usize>,
+    /// Rotation count for the currently selected library pattern preview.
+    selected_pattern_rotation: u8,
+    /// Horizontal mirror toggle for the selected library pattern preview.
+    selected_pattern_flip: bool,
     /// Canvas size from the last frame, used to anchor button/slider zoom on
     /// the canvas center (the mouse-based zoom anchors on the cursor instead).
     canvas_size: Vec2,
@@ -110,6 +114,8 @@ impl App {
             skip_generations: 0,
             tool: Tool::Draw,
             selected_start: None,
+            selected_pattern_rotation: 0,
+            selected_pattern_flip: false,
             canvas_size: Vec2::new(800.0, 600.0),
             dragging_minimap: false,
             middle_pan_active: false,
@@ -536,8 +542,17 @@ impl App {
                             Key::S if !repeat => self.sim.step_n(self.skip_generations),
                             Key::C if !repeat => self.sim.clear(),
                             Key::R if !repeat => {
-                                let (min, max) = self.view.visible_bounds(rect.size());
-                                self.sim.randomize(min, max, self.random_density);
+                                if let Some(_) = self.selected_pattern {
+                                    self.selected_pattern_rotation = self.selected_pattern_rotation.wrapping_add(1) % 4;
+                                } else {
+                                    let (min, max) = self.view.visible_bounds(rect.size());
+                                    self.sim.randomize(min, max, self.random_density);
+                                }
+                            }
+                            Key::F if !repeat => {
+                                if let Some(_) = self.selected_pattern {
+                                    self.selected_pattern_flip = !self.selected_pattern_flip;
+                                }
                             }
                             Key::Plus | Key::Equals => self.view.zoom(KEY_ZOOM_STEP, rect.size() / 2.0, min_cell_size),
                             Key::Minus => self.view.zoom(1.0 / KEY_ZOOM_STEP, rect.size() / 2.0, min_cell_size),
@@ -586,7 +601,11 @@ impl App {
                             && let Some(pointer) = response.interact_pointer_pos()
                         {
                             let cell = self.view.screen_to_cell(rect.min, pointer);
-                            let cells = self.library[idx].cells.clone();
+                            let cells = patterns::transform_cells(
+                                &self.library[idx].cells,
+                                self.selected_pattern_rotation,
+                                self.selected_pattern_flip,
+                            );
                             self.sim.stamp(&cells, cell);
                         }
                     }
@@ -696,7 +715,12 @@ impl App {
                 && let Some(pointer) = response.hover_pos()
             {
                 let base = self.view.screen_to_cell(rect.min, pointer);
-                for &(dx, dy) in &self.library[idx].cells {
+                let cells = patterns::transform_cells(
+                    &self.library[idx].cells,
+                    self.selected_pattern_rotation,
+                    self.selected_pattern_flip,
+                );
+                for (dx, dy) in cells {
                     let p = self.view.cell_to_screen(rect.min, (base.0 + dx as i64, base.1 + dy as i64));
                     painter.rect_filled(
                         Rect::from_min_size(p, Vec2::splat(cs)),
