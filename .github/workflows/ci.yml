@@ -1,0 +1,40 @@
+# Runs on every push/PR (unlike release.yml, which only builds installers
+# for a tagged release) so a broken build/test/lint is caught immediately
+# rather than at release time.
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  test:
+    name: Build, test, clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ci-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ci-cargo-
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            libx11-dev libxi-dev libxcursor-dev libxrandr-dev \
+            libxinerama-dev libxkbcommon-dev libgl1-mesa-dev libwayland-dev
+
+      - run: cargo build --all-targets
+      - run: cargo test
+      - run: cargo clippy --all-targets -- -D warnings

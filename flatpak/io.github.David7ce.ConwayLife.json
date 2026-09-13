@@ -1,0 +1,31 @@
+{
+    "app-id": "io.github.David7ce.ConwayLife",
+    "runtime": "org.freedesktop.Platform",
+    "runtime-version": "24.08",
+    "sdk": "org.freedesktop.Sdk",
+    "command": "conway_life",
+    "finish-args": [
+        "--share=ipc",
+        "--socket=fallback-x11",
+        "--socket=wayland",
+        "--device=dri"
+    ],
+    "modules": [
+        {
+            "name": "conway-life",
+            "buildsystem": "simple",
+            "build-commands": [
+                "install -Dm755 conway_life /app/bin/conway_life",
+                "install -Dm644 io.github.David7ce.ConwayLife.desktop /app/share/applications/io.github.David7ce.ConwayLife.desktop",
+                "install -Dm644 icon.png /app/share/icons/hicolor/256x256/apps/io.github.David7ce.ConwayLife.png",
+                "install -Dm644 io.github.David7ce.ConwayLife.metainfo.xml /app/share/metainfo/io.github.David7ce.ConwayLife.metainfo.xml"
+            ],
+            "sources": [
+                { "type": "file", "path": "conway_life" },
+                { "type": "file", "path": "io.github.David7ce.ConwayLife.desktop" },
+                { "type": "file", "path": "icon.png" },
+                { "type": "file", "path": "io.github.David7ce.ConwayLife.metainfo.xml" }
+            ]
+        }
+    ]
+}

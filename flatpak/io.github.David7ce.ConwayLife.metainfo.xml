@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.David7ce.ConwayLife</id>
+  <name>Game of Life</name>
+  <summary>Conway's Game of Life and other Life-like cellular automata</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>
+      A native desktop implementation of Conway's Game of Life, built with
+      egui/eframe. Includes 22 built-in Life-like rules grouped by
+      long-term behavior (stable/chaotic/explosive), a 35-pattern library
+      (still lifes, oscillators, spaceships, guns, methuselahs), density-based
+      starting configurations, a Draw/Pan/Eraser toolbox, Google Maps-style
+      pan and zoom, and a minimap.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.David7ce.ConwayLife.desktop</launchable>
+  <url type="homepage">https://github.com/David7ce/celular-automata-rust</url>
+  <url type="vcs-browser">https://github.com/David7ce/celular-automata-rust</url>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="0.1.0" date="2026-09-13" />
+  </releases>
+</component>
