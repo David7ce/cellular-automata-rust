@@ -2,3 +2,9 @@
 /target
 .agent/
 /dist
+builddir/
+.flatpak-builder/
+flatpak/.flatpak-builder/
+flatpak/repo/
+flatpak/cellular_automata
+cellular_automata.flatpak
