@@ -141,14 +141,14 @@ impl App {
             // can always be reclaimed for canvas space and always reopened.
             ui.horizontal(|ui| {
                 if ui
-                    .selectable_label(self.show_side_panel, "☰")
+                    .selectable_label(self.show_side_panel, "☰ Library")
                     .on_hover_text("Show/hide the pattern library panel")
                     .clicked()
                 {
                     self.show_side_panel = !self.show_side_panel;
                 }
                 if ui
-                    .selectable_label(self.show_extra_controls, "⚙")
+                    .selectable_label(self.show_extra_controls, "⚙ Settings")
                     .on_hover_text("Show/hide rule/board/custom-rule settings — collapse both bars to give the map more room")
                     .clicked()
                 {
