@@ -185,10 +185,30 @@ not become the reason the core gets harder to read.
 
 ## Still open from before
 
-- **Verify the release workflow end to end.** `.github/workflows/release.yml`
-  has never been exercised by a real run. Push a `v*` tag or use
-  `workflow_dispatch` and fix what the first run surfaces — the Flatpak and
-  Windows Inno Setup steps are the likeliest to need adjustment.
+- **Release workflow — exercised, and the Flatpak blocker is fixed.**
+  Correcting an earlier claim here that it "has never been exercised by a
+  real run": it has run three times. v0.1.0 succeeded; v0.1.2 and v0.1.3
+  both failed, which is why those two tags have GitHub releases with no
+  artifacts attached. On v0.1.3 the five other jobs (Linux, Windows, both
+  macOS) all passed and only the Flatpak job failed, at
+  `cargo build --release --offline`: `no matching package named eframe`.
+  Flatpak build sandboxes have no network, so `--offline` needs the
+  dependencies vendored up front, and the `.cargo/config.toml` that
+  arranged that was deleted in `e15028e`. Because the `release` job is
+  `needs: [... linux-flatpak ...]` with `if: success()`, that one failure
+  skipped publishing entirely.
+
+  Fixed for v0.1.4 with `flatpak/cargo-sources.json` (generated from
+  `Cargo.lock` by flatpak-builder-tools' `flatpak-cargo-generator.py`),
+  which lists every crate as a Flatpak source instead of vendoring their
+  code into the repo. Regenerate it whenever `Cargo.lock` changes:
+
+  ```sh
+  python3 flatpak-cargo-generator.py Cargo.lock -o flatpak/cargo-sources.json
+  ```
+
+  Still unverified: whether the Flatpak job now passes on a real runner.
+  That is what tagging v0.1.4 tests.
 - **Android packaging — not implemented.** eframe can target Android, but
   it needs an `android_main` entry point, Android-specific dependencies, an
   `AndroidManifest.xml`, and a `cargo-apk`/`cargo-ndk` + Gradle pipeline.

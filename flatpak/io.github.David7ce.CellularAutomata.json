@@ -14,7 +14,10 @@
         "--device=dri"
     ],
     "build-options": {
-        "append-path": "/usr/lib/sdk/rust-stable/bin"
+        "append-path": "/usr/lib/sdk/rust-stable/bin",
+        "env": {
+            "CARGO_HOME": "/run/build/cellular-automata/cargo"
+        }
     },
     "modules": [
         {
@@ -33,7 +36,11 @@
                 "install -Dm644 flatpak/io.github.David7ce.CellularAutomata.metainfo.xml /app/share/metainfo/io.github.David7ce.CellularAutomata.metainfo.xml"
             ],
             "sources": [
-                { "type": "dir", "path": ".." }
+                {
+                    "type": "dir",
+                    "path": ".."
+                },
+                "cargo-sources.json"
             ]
         }
     ]

@@ -144,11 +144,20 @@ jobs:
       - name: Fix binary executable permission
         run: chmod +x flatpak/cellular_automata
 
-      - name: Stamp version into Flatpak metainfo
+      # The metainfo now carries the real release history in-repo, so it is
+      # checked rather than rewritten. The previous `sed` replaced *every*
+      # <release> line with the version being built, which silently collapsed
+      # that whole history into one repeated entry.
+      - name: Check the released version is listed in the Flatpak metainfo
         run: |
-          sed -i \
-            "s|<release version=\"[^\"]*\" date=\"[^\"]*\" />|<release version=\"${{ needs.version.outputs.version }}\" date=\"$(date -u +%Y-%m-%d)\" />|" \
-            flatpak/io.github.David7ce.CellularAutomata.metainfo.xml
+          version='${{ needs.version.outputs.version }}'
+          file=flatpak/io.github.David7ce.CellularAutomata.metainfo.xml
+          if ! grep -q "<release version=\"$version\"" "$file"; then
+            echo "::error::$file has no <release version=\"$version\" ...> entry."
+            echo "Add one (newest first) and bump Cargo.toml to match before tagging."
+            exit 1
+          fi
+          echo "metainfo lists $version"
 
       - name: Build Flatpak
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
