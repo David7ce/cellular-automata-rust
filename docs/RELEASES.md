@@ -3,6 +3,55 @@
 Changelog of shipped work, newest first. For what's planned next, see
 [ROADMAP.md](ROADMAP.md).
 
+## Update — 2026-09-15 (v0.1.4: Flatpak release builds fixed)
+
+The v0.1.2 and v0.1.3 tags published GitHub releases with **no artifacts
+attached**. Cause: the `release` job is
+`needs: [version, linux, linux-flatpak, windows, macos-arm64, macos-intel]`
+guarded by `if: success()`, so any single job failing skips publishing — by
+design ("a half published release is worse than none"). On v0.1.3 five of
+the six build jobs passed; only the Flatpak job failed, at
+`cargo build --release --offline`:
+
+```
+error: no matching package named `eframe` found
+location searched: crates.io index
+```
+
+Flatpak builds run in a sandbox with no network, so `--offline` only works
+if the dependencies are already on disk. The `.cargo/config.toml` that
+pointed cargo at a vendored mirror was removed in `e15028e` ("Remove
+registry mirror hook from repo"), leaving the manifest asking for an
+offline build with nothing to build from.
+
+Fixed with `flatpak/cargo-sources.json`, generated from `Cargo.lock` by
+flatpak-builder-tools' `flatpak-cargo-generator.py`. It declares all 420
+crates as ordinary Flatpak `archive` sources (URL + sha256) that
+flatpak-builder fetches *before* the sandbox closes, plus a `cargo/config`
+replacing crates-io with that vendor directory — so the repository stays
+free of vendored dependency source, which is why the mirror was deleted in
+the first place. The manifest gained
+`CARGO_HOME=/run/build/cellular-automata/cargo` so cargo actually reads
+that config.
+
+Also in this release:
+
+- **`Cargo.toml` bumped to 0.1.4.** It had stayed at `0.1.0` through the
+  v0.1.2 and v0.1.3 tags, so the built binary reported a version three
+  releases stale. Artifact *filenames* were always correct — the workflow
+  derives those from the tag — but the crate's own version was not.
+- **Flatpak metainfo now carries the real release history** (0.1.4, 0.1.3,
+  0.1.2, 0.1.0) instead of a lone 0.1.0 entry. The workflow's "Stamp
+  version into Flatpak metainfo" step, whose `sed` rewrote *every*
+  `<release>` line to the version being built (collapsing any history into
+  one repeated entry), is replaced by a check that fails early if the
+  version being released is not listed.
+- **Repository URLs corrected** in the Flatpak metainfo (`homepage`,
+  `vcs-browser`) and the Windows installer (`AppPublisherURL`), which all
+  pointed at `celular-automata-rust` — the old misspelling — rather than
+  `cellular-automata-rust`. These are user-facing in software centres and
+  in Windows' Programs and Features.
+
 ## Update — 2026-09-13 (later: pattern library rows are fully clickable)
 
 "selecting a block from the collection of block should hover and do
