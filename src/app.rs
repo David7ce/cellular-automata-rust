@@ -542,7 +542,7 @@ impl App {
                             Key::S if !repeat => self.sim.step_n(self.skip_generations),
                             Key::C if !repeat => self.sim.clear(),
                             Key::R if !repeat => {
-                                if let Some(_) = self.selected_pattern {
+                                if self.selected_pattern.is_some() {
                                     self.selected_pattern_rotation = self.selected_pattern_rotation.wrapping_add(1) % 4;
                                 } else {
                                     let (min, max) = self.view.visible_bounds(rect.size());
@@ -550,7 +550,7 @@ impl App {
                                 }
                             }
                             Key::F if !repeat => {
-                                if let Some(_) = self.selected_pattern {
+                                if self.selected_pattern.is_some() {
                                     self.selected_pattern_flip = !self.selected_pattern_flip;
                                 }
                             }
