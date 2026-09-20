@@ -4,7 +4,7 @@ use crate::simulation::{Cell, WORLD_MAX, WORLD_MIN};
 
 /// Absolute safety floor for `cell_size`, guarding against degenerate math
 /// (e.g. a zero-sized canvas during startup). Not a user-facing zoom limit —
-/// see `min_cell_size_to_fit_world` for the real, dynamic "zoomed all the
+/// see `min_cell_size_to_cover_world` for the real, dynamic "zoomed all the
 /// way out" bound, which is normally far above this.
 const ABSOLUTE_MIN_CELL_SIZE: f32 = 0.05;
 pub const MAX_CELL_SIZE: f32 = 60.0;
@@ -46,7 +46,7 @@ impl View {
 
     /// Zooms so that the world point currently under `anchor` (screen-space,
     /// relative to the canvas origin) stays fixed. `min_cell_size` is the
-    /// current lower bound (see `min_cell_size_to_fit_world`) — passed in by
+    /// current lower bound (see `min_cell_size_to_cover_world`) — passed in by
     /// the caller, which knows the current canvas size, rather than a fixed
     /// constant, so the user can never zoom out past "the whole map is
     /// visible" regardless of window size.
@@ -100,18 +100,17 @@ fn clamp_axis(offset: f32, visible: f32, world_min: f32, world_size: f32) -> f32
     }
 }
 
-/// The zoom level (px/cell) at which the whole world exactly fits within a
-/// canvas of `canvas_size` — the Google Maps-style "minimum zoom": zooming
-/// out stops once the entire map is on screen, since there's nothing more
-/// to see beyond its borders. Whichever axis is tighter (the canvas's
-/// aspect ratio rarely matches the world's exactly) determines the value;
-/// `View::clamp_to_world` then centers the other, looser axis so nothing
-/// outside the world is ever shown.
-pub fn min_cell_size_to_fit_world(canvas_size: Vec2) -> f32 {
+/// The zoom level (px/cell) below which the canvas would show empty space
+/// outside the world: zooming out stops once the viewport exactly *covers*
+/// the world on its tighter axis, so no black margin is ever drawn. On a
+/// canvas that does not match the world's aspect ratio (a 16:9 window over
+/// a square world) the other axis shows only part of the world; the minimap
+/// gives the overview.
+pub fn min_cell_size_to_cover_world(canvas_size: Vec2) -> f32 {
     let world_w = (WORLD_MAX.0 - WORLD_MIN.0 + 1) as f32;
     let world_h = (WORLD_MAX.1 - WORLD_MIN.1 + 1) as f32;
     (canvas_size.x / world_w)
-        .min(canvas_size.y / world_h)
+        .max(canvas_size.y / world_h)
         .max(ABSOLUTE_MIN_CELL_SIZE)
 }
 
@@ -152,7 +151,7 @@ mod tests {
 
     #[test]
     fn clamp_centers_an_axis_when_the_viewport_is_wider_than_the_world() {
-        let cell_size = 0.1; // zoomed far out
+        let cell_size = 0.05; // zoomed far out
         let canvas = Vec2::new(400.0, 300.0);
         let mut view = View {
             offset: Vec2::ZERO,
@@ -172,29 +171,28 @@ mod tests {
     }
 
     #[test]
-    fn min_cell_size_to_fit_world_picks_the_tighter_axis() {
+    fn min_cell_size_to_cover_world_never_shows_space_outside_the_world() {
         let world_w = (WORLD_MAX.0 - WORLD_MIN.0 + 1) as f32;
         let world_h = (WORLD_MAX.1 - WORLD_MIN.1 + 1) as f32;
 
-        // A canvas much wider than the world's aspect ratio: height is the
-        // constraint, so the fit value should come from that axis.
+        // A canvas much wider than the world's aspect ratio: width is the
+        // constraint, so the value should come from that axis.
         let canvas = Vec2::new(world_w * 10.0, world_h);
-        let min_cs = min_cell_size_to_fit_world(canvas);
+        let min_cs = min_cell_size_to_cover_world(canvas);
         assert!(
-            (min_cs - 1.0).abs() < 1e-3,
-            "expected height-bound fit of 1px/cell, got {min_cs}"
+            (min_cs - 10.0).abs() < 1e-3,
+            "expected width-bound 10px/cell, got {min_cs}"
         );
 
-        // And the resulting viewport at that zoom must be at least as big as
-        // the whole world on both axes (so the whole map really is visible).
-        assert!(canvas.x / min_cs >= world_w - 1e-3);
-        assert!(canvas.y / min_cs >= world_h - 1e-3);
+        // At that zoom the viewport fits inside the world on both axes.
+        assert!(canvas.x / min_cs <= world_w + 1e-3);
+        assert!(canvas.y / min_cs <= world_h + 1e-3);
     }
 
     #[test]
     fn zoom_never_goes_below_the_passed_in_minimum() {
         let canvas = Vec2::new(200.0, 150.0);
-        let min_cs = min_cell_size_to_fit_world(canvas);
+        let min_cs = min_cell_size_to_cover_world(canvas);
         let mut view = View {
             offset: Vec2::ZERO,
             cell_size: min_cs,

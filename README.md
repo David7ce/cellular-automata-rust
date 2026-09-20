@@ -23,18 +23,14 @@ identity.
   list with the class as a same-line suffix on every row. Each row
   is clickable/highlighted across its full width, not just the text. Plus 9
   Birth / 9 Survive checkboxes to build any custom rule by hand.
-- **Finite 960x480 plane** (2:1 — wider than plain 16:9, chosen to better
-  match the canvas's actual usable shape once the top bar's height is
-  subtracted from a typical window, which is itself wider-than-16:9, not a
-  pure 16:9 rectangle): live cells are stored as a `HashSet<(i64, i64)>`
-  bounded to `x ∈ [-480, 479]`, `y ∈ [-240, 239]`
+- **Finite 4096x4096 square plane** (Golly's universe is square too, so
+  patterns and their rotations that fit there fit here): live cells are
+  stored as a `HashSet<(i64, i64)>` bounded to `x, y ∈ [-2048, 2047]`
   (`simulation::WORLD_MIN/WORLD_MAX`) — no wraparound, cells simply can't
   be painted, stamped, or born past the edge (drawn as a red boundary line
   on the canvas), stepped with the standard neighbor-counting algorithm
-  (`O(live cells)` per generation). The size is an exact multiple of
-  `view::MAX_CELL_SIZE` (60px divides it evenly on both axes), so the
-  world's edge always lines up cleanly with the grid at max zoom instead
-  of clipping a partial cell.
+  (`O(live cells)` per generation, so the size of the world costs nothing
+  until a pattern actually grows into it).
 - **Starting configurations**: a "Start" dropdown + "Load" button
   (Simulation row) clears the board and scatters a named setup across the
   *whole* world at the same density the "Random"/density slider controls
@@ -100,11 +96,10 @@ identity.
   itself (very zoomed out on a large window), that axis is centered on the
   map instead.
 - **Minimap**: bottom-right overlay showing the whole plane, a green marker
-  per occupied region, and a yellow outline for the current viewport. Sized
-  to the same 2:1 rectangle as the world itself (not a square), so it
-  shows the plane shrunk down evenly instead of stretched. Click or drag
-  inside it to jump/pan the camera anywhere on the plane instantly — handy
-  since the plane is much bigger than what's visible at once.
+  per occupied region, and a yellow outline for the current viewport. A
+  128px square, matching the world. Click or drag inside it to jump/pan
+  the camera anywhere on the plane instantly — handy since the plane is
+  much bigger than what's visible at once.
 - **Zoom & pan, Google Maps-style**: a physical mouse's scroll wheel zooms
   in/out anchored on the cursor, exactly like scrolling on a Google Maps
   page; a laptop trackpad's smooth two-finger scroll pans freely in any
@@ -124,13 +119,12 @@ identity.
   (winit only wires up `PinchGesture`/`PanGesture` on macOS/iOS), so this
   on-canvas control (plus the wheel/Pan-tool/middle-drag panning above) is
   the primary way to navigate via touchpad there, not just a fallback.
-- **Minimum zoom always shows the whole map** — like Google Maps, you can
-  zoom out until the entire plane is on screen, and no further; the exact
-  cell size that achieves this is computed every frame from the current
-  window size (`view::min_cell_size_to_fit_world`) rather than a fixed
-  constant, so it stays correct across window resizes. At that zoom level
-  the minimap's yellow viewport outline exactly fills the minimap box,
-  since the visible area and the whole world are now the same rectangle.
+- **Minimum zoom never shows empty space** — you can zoom out until the
+  viewport exactly covers the plane on its tighter axis, and no further
+  (`view::min_cell_size_to_cover_world`, recomputed every frame from the
+  window size). On a 16:9 window over the square plane the full width is
+  visible and part of the height; there is never a black margin, and the
+  minimap gives the overview.
 - **Speed control**: Play/Pause (▶/⏸)/Step (⏭), generations-per-second
   slider. Play/Pause, Step, Clear (🗑), Random (🎲), and the on-canvas zoom
   overlay's buttons are icon buttons with hover tooltips spelling out what
@@ -148,7 +142,8 @@ identity.
   still life / oscillator / spaceship / gun / methuselah its category claims.
 - **Golly interchange (Life-like B/S rules only)**: "Copy RLE" puts the
   board on the clipboard as Golly-format RLE (`x = .., y = .., rule = B3/S23`
-  header, 70-column lines); Ctrl+V pastes RLE copied from Golly and makes it
+  header, 70-column lines); "Import RLE" opens a `.rle` file with the native
+  file picker and Ctrl+V pastes RLE copied from Golly — either way it becomes
   the pattern in hand, switching to the rule in its header. Rule text
   accepts `B3/S23`, `b3/s23` and the legacy `23/3`. Not supported, and
   rejected with a message instead of misread: B0 rules, `:T`/`:P` bounded-grid
@@ -183,6 +178,7 @@ src/
 | Draw / erase a cell | Left-click (Draw tool; erases instead if the stroke starts on a live cell) |
 | Freehand paint a trail | Left-click-drag (Draw tool) |
 | Force-erase cells | Switch to the "Eraser" tool (top bar, always visible), then click/drag — always removes, regardless of cell state |
+| Import a `.rle` file | "Import RLE" button (Simulation row) — opens a file picker, then click the canvas to place |
 | Import a pattern from Golly | Copy it in Golly, press `Ctrl+V` here, click the canvas to place |
 | Export the board to Golly | "Copy RLE" button (Simulation row), then paste in Golly |
 | Place a pattern | Select it in the pattern library overlay (top-left), then click the canvas (switches back to the Draw tool) |

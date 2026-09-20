@@ -3,6 +3,33 @@
 Changelog of shipped work, newest first. For what's planned next, see
 [ROADMAP.md](ROADMAP.md).
 
+## v0.1.7 — 2026-09-20: bigger map, Import RLE, no console window
+
+- **The world is a 4096 x 4096 square** (was 960 x 480), matching Golly's
+  square universe. A square rather than a wide rectangle so rotated or
+  mirrored patterns always fit; on a 16:9 window the minimum zoom now
+  *covers* the plane instead of fitting it, so there is never a black
+  margin (see `view::min_cell_size_to_cover_world`); the minimap is a
+  128px square. Starting configurations and the Random button are capped
+  to a bounded area (960 x 480 and 1024 x 1024 cells) instead of the whole
+  world, which would otherwise be millions of live cells.
+- **"Import RLE" button** opens a native file picker (`rfd`) for Golly
+  `.rle` files; "Copy RLE" and Ctrl+V are unchanged. `flatpak/cargo-sources.json`
+  regenerated for the new dependency.
+- **Playing pauses at 1,000,000 live cells** (`SimState::population_limit`),
+  so an explosive rule on the bigger world cannot freeze the window; Step
+  still works past it.
+- **Pattern library categories start collapsed.**
+- **App icon everywhere.** The Windows `.exe` now has the icon embedded
+  (`build.rs` + `winresource`, so Explorer, the taskbar, pinned shortcuts
+  and the portable ZIP show it; the installer's uninstall entry uses it
+  too), and every platform's window gets it at runtime, with the app id set
+  so Wayland/X11 shells match it to the `.desktop` icon. Linux (AppImage,
+  Flatpak) and macOS (`.icns` from the 1024px master) already shipped it in
+  their packages.
+- **No console window on Windows.** Release builds use the GUI subsystem, so
+  launching the app no longer opens a terminal that closes the app with it.
+
 ## v0.1.6 — 2026-09-20: simplified release workflow
 
 No application changes. `release.yml` rewritten: the Flatpak job no longer

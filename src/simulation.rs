@@ -16,20 +16,12 @@ pub type Cell = (i64, i64);
 /// bounds already (nothing can insert one outside), so `next_generation`
 /// only needs to filter birth candidates, not survivors.
 ///
-/// Sized to 960x480, a 2:1 rectangle — wider than a plain 16:9 (1.78) to
-/// better match the canvas's *actual* usable shape once the top bar's
-/// height is subtracted from a typical window (a wider-than-16:9 area, not
-/// a pure 16:9 one), which cuts down how much of the canvas ends up as
-/// unused pillarbox margin either side of the map.
-/// Also chosen to be an exact multiple of the max-zoom cell size
-/// (`view::MAX_CELL_SIZE` = 60px divides it evenly on both axes: 16 cells
-/// wide, 8 cells tall), so the world's edge lines up cleanly with the grid
-/// at max zoom instead of clipping a partial cell. The *minimum* zoom
-/// (zoomed all the way out) is dynamic rather than a fixed divisor of this
-/// size — see `view::min_cell_size_to_fit_world`, which always shows the
-/// whole map regardless of window size.
-pub const WORLD_MIN: Cell = (-480, -240);
-pub const WORLD_MAX: Cell = (479, 239);
+/// A 4096x4096 square: Golly's universe is square, so patterns (and their
+/// rotations) that fit there fit here, and it is far more room than the
+/// sparse simulation needs before an expanding pattern reaches an edge.
+/// Cost tracks the number of live cells, not the size of the world.
+pub const WORLD_MIN: Cell = (-2048, -2048);
+pub const WORLD_MAX: Cell = (2047, 2047);
 
 pub fn in_world(cell: Cell) -> bool {
     cell.0 >= WORLD_MIN.0 && cell.0 <= WORLD_MAX.0 && cell.1 >= WORLD_MIN.1 && cell.1 <= WORLD_MAX.1
@@ -59,6 +51,10 @@ pub struct SimState {
     /// `step_n`, summed across that whole batch).
     pub last_births: u64,
     pub last_deaths: u64,
+    /// `tick` pauses the run once the population exceeds this: on the big
+    /// world an explosive rule would otherwise grow until one generation
+    /// takes seconds and the window stops responding.
+    pub population_limit: usize,
     accumulator: f32,
 }
 
@@ -73,6 +69,7 @@ impl SimState {
             generation: 0,
             last_births: 0,
             last_deaths: 0,
+            population_limit: 1_000_000,
             accumulator: 0.0,
         }
     }
@@ -219,6 +216,9 @@ impl SimState {
             self.step();
         }
         self.accumulator -= steps as f32;
+        if self.live.len() > self.population_limit {
+            self.running = false;
+        }
         if due > MAX_STEPS_PER_TICK {
             // Can't keep up (huge board, or a long stall): drop the backlog
             // instead of freezing the window trying to drain it.
@@ -343,6 +343,16 @@ mod tests {
             glider.live.len() as u64,
             5 + glider.last_births - glider.last_deaths
         );
+    }
+
+    #[test]
+    fn tick_pauses_when_the_population_limit_is_exceeded() {
+        let mut sim = sim_with("2o$2o!");
+        sim.running = true;
+        sim.population_limit = 3;
+        sim.speed = 60.0;
+        sim.tick(1.0);
+        assert!(!sim.running);
     }
 
     #[test]

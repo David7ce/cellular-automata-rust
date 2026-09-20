@@ -1,11 +1,16 @@
 use rand::RngExt;
 
 use crate::patterns::Pattern;
-use crate::simulation::{SimState, WORLD_MAX, WORLD_MIN};
+use crate::simulation::{Cell, SimState};
+
+/// The central 960x480 area starts are laid out in. The world is far bigger
+/// than that; scattering across all of it would mean millions of live cells.
+const START_MIN: Cell = (-480, -240);
+const START_MAX: Cell = (479, 239);
 
 /// Named starting layouts the user can load in one action instead of
 /// stamping/painting a fresh board by hand every time. Every option here is
-/// a density-based scatter across the whole world rather than a single
+/// a density-based scatter across the start area rather than a single
 /// fixed figure or a hardcoded instance count, so the same density slider
 /// that drives "Random soup" also controls how crowded a "Glider field" or
 /// "Pulsar field" comes out. There's no "Empty board" entry — clearing the
@@ -16,12 +21,11 @@ use crate::simulation::{SimState, WORLD_MAX, WORLD_MIN};
 /// pattern's shape automatically applies to any start built from it.
 pub const START_CONFIGS: &[&str] = &["Random soup", "Glider field", "Gosper gun field", "Pulsar field"];
 
-/// Clears the board, then lays out `name` across the whole world at
-/// `density`.
+/// Clears the board, then lays out `name` across the start area at `density`.
 pub fn apply(sim: &mut SimState, name: &str, library: &[Pattern], density: f32) {
     sim.clear();
     if name == "Random soup" {
-        sim.randomize(WORLD_MIN, WORLD_MAX, density);
+        sim.randomize(START_MIN, START_MAX, density);
     } else if let Some((pattern, spacing)) = scattered_pattern(name) {
         scatter(sim, library, pattern, spacing, density);
     }
@@ -46,7 +50,7 @@ pub fn is_available(name: &str, library: &[Pattern]) -> bool {
         || scattered_pattern(name).is_some_and(|(pattern, _)| library.iter().any(|p| p.name == pattern))
 }
 
-/// Scatters copies of `pattern_name` across the whole world on a lattice of
+/// Scatters copies of `pattern_name` across the start area on a lattice of
 /// candidate centers `spacing` cells apart, stamping one at each candidate
 /// independently with probability `density`. `spacing` should be picked per
 /// pattern to keep overlap between neighboring instances rare — roughly the
@@ -58,10 +62,10 @@ fn scatter(sim: &mut SimState, library: &[Pattern], pattern_name: &str, spacing:
     };
     let (cx, cy) = bounding_center(&pattern.cells);
     let mut rng = rand::rng();
-    let mut x = WORLD_MIN.0;
-    while x <= WORLD_MAX.0 {
-        let mut y = WORLD_MIN.1;
-        while y <= WORLD_MAX.1 {
+    let mut x = START_MIN.0;
+    while x <= START_MAX.0 {
+        let mut y = START_MIN.1;
+        while y <= START_MAX.1 {
             if rng.random::<f32>() < density {
                 sim.stamp(&pattern.cells, (x - cx, y - cy));
             }

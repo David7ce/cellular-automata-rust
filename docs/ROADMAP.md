@@ -25,7 +25,7 @@ its own tests.
     a spatial index. Build it inline in `next_generation`, or derive minimap
     occupancy on demand.
   - `HashSet<(i64, i64)>` hashes 16 bytes through SipHash per lookup; the
-    world fits one `u32` index (960 x 480).
+    world fits one `u32` index (4096 x 4096 is 24 bits).
 
   Do these two (the births/deaths passes are already merged into one),
   re-measure, stop. **Do not switch to a dense grid**: on the populations the playground actually runs the sparse set is faster
@@ -41,15 +41,19 @@ its own tests.
 ## 2. Golly interchange — what is left
 
 Shipped: RLE read/write with rule header, `B3/S23` / `23/3` rule strings,
-clipboard copy and paste, per-rule pattern collections.
+clipboard copy and paste, `.rle` file import, per-rule pattern collections.
 
-- **Open / save `.rle` files** through a native dialog (`rfd`). Deliberately
-  deferred: clipboard covers the Golly workflow without a dependency, and a
-  file dialog adds Flatpak portal surface. Do it when someone needs to load
-  a Golly pattern *collection* rather than one pattern at a time.
+- **Save `.rle` files.** Import has a file picker (`rfd`) and export goes
+  through the clipboard; add a save dialog if pasting into a file by hand
+  gets tedious. Loading a whole Golly pattern *collection* is not planned.
+- **Full-world soups are slow.** The world is 4096 x 4096, so an explosive
+  rule can now grow to millions of live cells, and one generation of that
+  takes seconds (the per-tick cap bounds generations per frame, not the
+  cost of one). Playing now pauses at 1,000,000 live cells; moving the
+  step to a worker thread would remove the remaining stall.
 - **B0 rules.** Rejected today, because the sparse step only visits cells
   adjacent to a live cell. Golly emulates them by alternating the rule with
-  its complement; on a bounded 960 x 480 world that means storing the
+  its complement; on the bounded 4096 x 4096 world that means storing the
   inverted board on odd generations. Only worth it if a specific B0 rule is
   wanted.
 - **More collections**, one rule at a time, each entry verified by

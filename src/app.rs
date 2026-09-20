@@ -15,12 +15,13 @@ const PAN_STEP: f32 = 60.0;
 const SKIP_OPTIONS: &[u32] = &[0, 5, 10, 50, 100, 500, 1000];
 /// On-screen size of the minimap box, anchored to the canvas's bottom-right
 /// corner with `MINIMAP_MARGIN` of breathing room.
-/// The world is a 2:1 rectangle (960x480), not a square, so the minimap
-/// must match that same ratio — a mismatched box would non-uniformly
-/// stretch the map (and everything drawn on it: the viewport outline,
-/// occupied-chunk markers) to fill it, distorting proportions instead of
-/// just showing the whole plane shrunk down evenly.
-const MINIMAP_SIZE: Vec2 = Vec2::new(160.0, 80.0);
+/// Must match the world's aspect ratio (a square) or the map, viewport
+/// outline and occupied-chunk markers would be stretched. 128px over 4096
+/// cells makes one spatial-index chunk (32 cells) exactly one pixel.
+const MINIMAP_SIZE: Vec2 = Vec2::new(128.0, 128.0);
+/// Largest span (cells per axis) the Random button fills, so zooming all the
+/// way out and pressing it cannot ask for millions of live cells.
+const RANDOM_MAX_SPAN: i64 = 1024;
 const MINIMAP_MARGIN: f32 = 12.0;
 
 /// Which action a left-click/drag on the canvas performs. Mutually
@@ -140,16 +141,50 @@ impl App {
         self.selected_start = None;
     }
 
+    /// Fills the visible area randomly, capped at `RANDOM_MAX_SPAN` cells per
+    /// axis around its center.
+    fn randomize_visible(&mut self, canvas: Vec2) {
+        let (min, max) = self.view.visible_bounds(canvas);
+        let cap = |lo: i64, hi: i64| {
+            let mid = (lo + hi) / 2;
+            (
+                lo.max(mid - RANDOM_MAX_SPAN / 2),
+                hi.min(mid + RANDOM_MAX_SPAN / 2),
+            )
+        };
+        let ((min_x, max_x), (min_y, max_y)) = (cap(min.0, max.0), cap(min.1, max.1));
+        self.sim
+            .randomize((min_x, min_y), (max_x, max_y), self.random_density);
+    }
+
+    /// Opens a Golly-format `.rle` file through the native file picker.
+    fn import_rle_file(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .set_title("Import RLE pattern")
+            .add_filter("RLE pattern", &["rle", "txt"])
+            .pick_file()
+        else {
+            return;
+        };
+        let name = path
+            .file_stem()
+            .map_or_else(|| "Imported pattern".into(), |s| s.to_string_lossy().into_owned());
+        match std::fs::read_to_string(&path) {
+            Ok(text) => self.paste(&text, &name),
+            Err(e) => self.status = Some(format!("Import failed: {e}")),
+        }
+    }
+
     /// Golly interchange: RLE text pasted from the clipboard becomes the
     /// pattern in hand. If its header names a different rule, that rule is
     /// activated first (as Golly does when opening a file).
-    fn paste(&mut self, text: &str) {
+    fn paste(&mut self, text: &str, name: &str) {
         let rle = match rle::parse(text) {
             Ok(rle) if rle.cells.is_empty() => {
-                return self.status = Some("Paste failed: no live cells".into());
+                return self.status = Some("Import failed: no live cells".into());
             }
             Ok(rle) => rle,
-            Err(e) => return self.status = Some(format!("Paste failed: {e}")),
+            Err(e) => return self.status = Some(format!("Import failed: {e}")),
         };
         if let Some(rule) = rle.rule
             && rule != self.sim.rule
@@ -157,13 +192,13 @@ impl App {
             self.set_rule(rule);
         }
         self.status = Some(format!(
-            "Pasted {} cells under {} - click canvas to place",
+            "Loaded {} cells under {} - click canvas to place",
             rle.cells.len(),
             self.sim.rule.to_bs_string()
         ));
         self.library.retain(|p| p.category != Category::Imported);
         self.library.push(Pattern {
-            name: "Pasted pattern".into(),
+            name: name.into(),
             category: Category::Imported,
             cells: rle.cells,
         });
@@ -178,7 +213,14 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         let dt = ctx.input(|i| i.stable_dt);
+        let was_running = self.sim.running;
         self.sim.tick(dt);
+        if was_running && !self.sim.running {
+            self.status = Some(format!(
+                "Paused: over {} live cells (Step still works)",
+                self.sim.population_limit
+            ));
+        }
         let pasted = ctx.input(|i| {
             i.events.iter().find_map(|e| {
                 if let egui::Event::Paste(t) = e {
@@ -191,7 +233,7 @@ impl eframe::App for App {
         if let Some(text) = pasted
             && !ctx.egui_wants_keyboard_input()
         {
-            self.paste(&text);
+            self.paste(&text, "Pasted pattern");
         }
         if self.sim.running {
             ctx.request_repaint();
@@ -370,16 +412,24 @@ impl App {
                     self.status = Some(format!("Copied {} cells as RLE", self.sim.live.len()));
                 }
                 if ui
+                    .button("Import RLE")
+                    .on_hover_text(
+                        "Open a Golly-format .rle file and place it like a library pattern (switches to the rule in its header)",
+                    )
+                    .clicked()
+                {
+                    self.import_rle_file();
+                }
+                if ui
                     .button("🎲")
-                    .on_hover_text(format!("Random: fill the visible area at {:.0}% density", self.random_density * 100.0))
+                    .on_hover_text(format!("Random: fill the visible area (at most {RANDOM_MAX_SPAN}x{RANDOM_MAX_SPAN} cells around its center) at {:.0}% density", self.random_density * 100.0))
                     .clicked()
                 {
                     // `canvas_size` (one frame stale, like the zoom controls
                     // above used to be) is the aspect-locked map size, not
                     // this row's own width — using `ui.available_size()`
                     // here would fill by the top bar's width, not the map's.
-                    let (min, max) = self.view.visible_bounds(self.canvas_size.max(Vec2::new(400.0, 400.0)));
-                    self.sim.randomize(min, max, self.random_density);
+                    self.randomize_visible(self.canvas_size.max(Vec2::new(400.0, 400.0)));
                 }
                 ui.add(egui::Slider::new(&mut self.random_density, 0.05..=0.9).text("density"));
 
@@ -489,7 +539,7 @@ impl App {
                                     continue;
                                 }
                                 egui::CollapsingHeader::new(category.label())
-                                    .default_open(true)
+                                    .default_open(false)
                                     .show(ui, |ui| {
                                         for (idx, pattern) in self.library.iter().enumerate() {
                                             if pattern.category != category {
@@ -528,7 +578,7 @@ impl App {
             painter.rect_filled(rect, 0.0, Color32::from_gray(18));
 
             let pointer_local = response.hover_pos().map(|p| p - rect.min);
-            let min_cell_size = view::min_cell_size_to_fit_world(self.canvas_size);
+            let min_cell_size = view::min_cell_size_to_cover_world(self.canvas_size);
             let zoom_anchor = ctx
                 .input(|i| i.multi_touch())
                 .map(|t| t.center_pos - rect.min)
@@ -647,8 +697,7 @@ impl App {
                                     self.selected_pattern_rotation =
                                         self.selected_pattern_rotation.wrapping_add(1) % 4;
                                 } else {
-                                    let (min, max) = self.view.visible_bounds(rect.size());
-                                    self.sim.randomize(min, max, self.random_density);
+                                    self.randomize_visible(rect.size());
                                 }
                             }
                             Key::F if !repeat => {

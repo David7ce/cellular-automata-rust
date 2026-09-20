@@ -1,3 +1,6 @@
+// Release builds are GUI-subsystem on Windows: no console window behind the app.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 #[cfg(test)]
 mod analysis;
 mod app;
@@ -15,7 +18,14 @@ fn main() -> eframe::Result<()> {
         // consuming panels), only the top bar competes with the map for
         // space, so a wider, shorter default window leaves the map more
         // room without needing it maximized.
-        viewport: eframe::egui::ViewportBuilder::default().with_inner_size([1440.0, 810.0]),
+        viewport: eframe::egui::ViewportBuilder::default()
+            .with_inner_size([1440.0, 810.0])
+            .with_icon(
+                eframe::icon_data::from_png_bytes(include_bytes!("../packaging/icons/icon.png"))
+                    .expect("bundled icon is a valid PNG"),
+            )
+            // Lets Wayland/X11 shells match the window to the .desktop file's icon.
+            .with_app_id("io.github.David7ce.CellularAutomata"),
         ..Default::default()
     };
     eframe::run_native(

@@ -23,6 +23,7 @@ OutputBaseFilename=CellularAutomata-{#AppVersion}-Windows-Setup
 Compression=lzma2
 SolidCompression=yes
 SetupIconFile=..\icons\icon.ico
+UninstallDisplayIcon={app}\CellularAutomata.exe
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
