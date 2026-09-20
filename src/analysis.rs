@@ -10,9 +10,15 @@ use crate::simulation::{Cell, next_generation};
 pub enum Behavior {
     Dies,
     StillLife,
-    Oscillator { period: u32 },
+    Oscillator {
+        period: u32,
+    },
     /// Returns to its own shape translated by `(dx, dy)` after `period` generations.
-    Spaceship { period: u32, dx: i64, dy: i64 },
+    Spaceship {
+        period: u32,
+        dx: i64,
+        dy: i64,
+    },
     /// No repeat within the generation bound (guns, methuselahs, replicators, chaos).
     Unsettled,
 }
@@ -67,7 +73,14 @@ mod tests {
     fn conway_basics() {
         assert_eq!(classify_rle("2o$2o!"), Behavior::StillLife);
         assert_eq!(classify_rle("3o!"), Behavior::Oscillator { period: 2 });
-        assert_eq!(classify_rle("bo$2bo$3o!"), Behavior::Spaceship { period: 4, dx: 1, dy: 1 });
+        assert_eq!(
+            classify_rle("bo$2bo$3o!"),
+            Behavior::Spaceship {
+                period: 4,
+                dx: 1,
+                dy: 1
+            }
+        );
         assert_eq!(classify_rle("o!"), Behavior::Dies);
         assert_eq!(classify_rle("b2o$2o$bo!"), Behavior::Unsettled); // R-pentomino runs > 100 gens
     }

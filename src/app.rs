@@ -2,10 +2,10 @@ use eframe::egui::{self, Color32, Key, Pos2, Rect, Sense, Stroke, StrokeKind, Ve
 
 use crate::patterns::{self, Category, Pattern};
 use crate::rle;
-use crate::rules::{self, RuleSet};
-use crate::simulation::{Cell, SimState, CHUNK_SIZE, WORLD_MAX, WORLD_MIN};
+use crate::rules::{self, Class, RuleSet};
+use crate::simulation::{CHUNK_SIZE, Cell, SimState, WORLD_MAX, WORLD_MIN};
 use crate::starts;
-use crate::view::{self, View, MAX_CELL_SIZE};
+use crate::view::{self, MAX_CELL_SIZE, View};
 
 /// Zoom factor applied per keyboard/button zoom-shortcut press ('+'/'-').
 const KEY_ZOOM_STEP: f32 = 1.2;
@@ -53,7 +53,7 @@ pub struct App {
     library: Vec<Pattern>,
     selected_pattern: Option<usize>,
     preset_name: &'static str,
-    preset_class: &'static str,
+    preset_class: Option<Class>,
     random_density: f32,
     /// Whether the current drag-paint stroke is drawing (true) or erasing (false).
     paint_value: Option<bool>,
@@ -109,7 +109,7 @@ impl App {
             library: patterns::library_for(&rule),
             selected_pattern: None,
             preset_name: rules::PRESETS[0].name,
-            preset_class: rules::PRESETS[0].class,
+            preset_class: Some(rules::PRESETS[0].class),
             random_density: 0.35,
             paint_value: None,
             last_paint_cell: None,
@@ -134,7 +134,7 @@ impl App {
     fn set_rule(&mut self, rule: RuleSet) {
         self.sim.rule = rule;
         let preset = rules::PRESETS.iter().find(|p| rules::preset_rule(p) == rule);
-        (self.preset_name, self.preset_class) = preset.map_or(("Custom", "custom"), |p| (p.name, p.class));
+        (self.preset_name, self.preset_class) = preset.map_or(("Custom", None), |p| (p.name, Some(p.class)));
         self.library = patterns::library_for(&rule);
         self.selected_pattern = None;
         self.selected_start = None;
@@ -145,7 +145,9 @@ impl App {
     /// activated first (as Golly does when opening a file).
     fn paste(&mut self, text: &str) {
         let rle = match rle::parse(text) {
-            Ok(rle) if rle.cells.is_empty() => return self.status = Some("Paste failed: no live cells".into()),
+            Ok(rle) if rle.cells.is_empty() => {
+                return self.status = Some("Paste failed: no live cells".into());
+            }
             Ok(rle) => rle,
             Err(e) => return self.status = Some(format!("Paste failed: {e}")),
         };
@@ -154,10 +156,17 @@ impl App {
         {
             self.set_rule(rule);
         }
-        self.status =
-            Some(format!("Pasted {} cells under {} - click canvas to place", rle.cells.len(), self.sim.rule.to_bs_string()));
+        self.status = Some(format!(
+            "Pasted {} cells under {} - click canvas to place",
+            rle.cells.len(),
+            self.sim.rule.to_bs_string()
+        ));
         self.library.retain(|p| p.category != Category::Imported);
-        self.library.push(Pattern { name: "Pasted pattern".into(), category: Category::Imported, cells: rle.cells });
+        self.library.push(Pattern {
+            name: "Pasted pattern".into(),
+            category: Category::Imported,
+            cells: rle.cells,
+        });
         self.selected_pattern = Some(self.library.len() - 1);
         self.selected_pattern_rotation = 0;
         self.selected_pattern_flip = false;
@@ -170,7 +179,15 @@ impl eframe::App for App {
         let ctx = ui.ctx().clone();
         let dt = ctx.input(|i| i.stable_dt);
         self.sim.tick(dt);
-        let pasted = ctx.input(|i| i.events.iter().find_map(|e| if let egui::Event::Paste(t) = e { Some(t.clone()) } else { None }));
+        let pasted = ctx.input(|i| {
+            i.events.iter().find_map(|e| {
+                if let egui::Event::Paste(t) = e {
+                    Some(t.clone())
+                } else {
+                    None
+                }
+            })
+        });
         if let Some(text) = pasted
             && !ctx.egui_wants_keyboard_input()
         {
@@ -269,7 +286,10 @@ impl App {
                 ui.label("Rule:");
                 egui::ComboBox::from_id_salt("rule_preset")
                     .width(180.0)
-                    .selected_text(format!("{} ({})", self.preset_name, self.preset_class))
+                    .selected_text(match self.preset_class {
+                        Some(class) => format!("{} ({})", self.preset_name, class.label()),
+                        None => self.preset_name.to_string(),
+                    })
                     .show_ui(ui, |ui| {
                         // Grouped by long-term random-soup behavior instead
                         // of one flat 22-entry list, so a preset's class is
@@ -278,9 +298,9 @@ impl App {
                         // uses `add_sized` at the indented width's full
                         // extent so the whole row is clickable/highlighted,
                         // not just the text itself.
-                        for &class in &["chaotic", "explosive", "stable"] {
-                            ui.label(egui::RichText::new(class).small().strong());
-                            ui.indent(("rule_class_indent", class), |ui| {
+                        for class in Class::ALL {
+                            ui.label(egui::RichText::new(class.label()).small().strong());
+                            ui.indent(("rule_class_indent", class.label()), |ui| {
                                 for preset in rules::PRESETS.iter().filter(|p| p.class == class) {
                                     let width = ui.available_width();
                                     let selected = self.preset_name == preset.name;
@@ -418,13 +438,21 @@ impl App {
                         // corner), rather than immediately after the heading
                         // text.
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.small_button("✖").on_hover_text("Hide the pattern library").clicked() {
+                            if ui
+                                .small_button("✖")
+                                .on_hover_text("Hide the pattern library")
+                                .clicked()
+                            {
                                 self.show_side_panel = false;
                             }
                         });
                     });
                     match patterns::collection_name(&self.sim.rule) {
-                        Some(name) => ui.label(egui::RichText::new(format!("{name} collection")).small().italics()),
+                        Some(name) => ui.label(
+                            egui::RichText::new(format!("{name} collection"))
+                                .small()
+                                .italics(),
+                        ),
                         None => ui.label(
                             egui::RichText::new(format!(
                                 "No built-in patterns for {}. Paste RLE from Golly with Ctrl+V.",
@@ -460,18 +488,22 @@ impl App {
                                 if !self.library.iter().any(|p| p.category == category) {
                                     continue;
                                 }
-                                egui::CollapsingHeader::new(category.label()).default_open(true).show(ui, |ui| {
-                                    for (idx, pattern) in self.library.iter().enumerate() {
-                                        if pattern.category != category {
-                                            continue;
+                                egui::CollapsingHeader::new(category.label())
+                                    .default_open(true)
+                                    .show(ui, |ui| {
+                                        for (idx, pattern) in self.library.iter().enumerate() {
+                                            if pattern.category != category {
+                                                continue;
+                                            }
+                                            let selected = self.selected_pattern == Some(idx);
+                                            if pattern_row(ui, selected, &pattern.cells, &pattern.name)
+                                                .clicked()
+                                            {
+                                                self.selected_pattern = Some(idx);
+                                                self.tool = Tool::Draw;
+                                            }
                                         }
-                                        let selected = self.selected_pattern == Some(idx);
-                                        if pattern_row(ui, selected, &pattern.cells, &pattern.name).clicked() {
-                                            self.selected_pattern = Some(idx);
-                                            self.tool = Tool::Draw;
-                                        }
-                                    }
-                                });
+                                    });
                             }
                         });
                 });
@@ -533,7 +565,13 @@ impl App {
                 let mut trackpad_pan_delta = Vec2::ZERO;
                 ctx.input(|i| {
                     for event in &i.events {
-                        let &egui::Event::MouseWheel { unit, delta, modifiers, .. } = event else {
+                        let &egui::Event::MouseWheel {
+                            unit,
+                            delta,
+                            modifiers,
+                            ..
+                        } = event
+                        else {
                             continue;
                         };
                         if modifiers.ctrl || modifiers.command || modifiers.mac_cmd {
@@ -548,7 +586,8 @@ impl App {
                     }
                 });
                 if line_wheel_notches != 0.0 {
-                    self.view.zoom(KEY_ZOOM_STEP.powf(line_wheel_notches), zoom_anchor, min_cell_size);
+                    self.view
+                        .zoom(KEY_ZOOM_STEP.powf(line_wheel_notches), zoom_anchor, min_cell_size);
                 }
                 if trackpad_pan_delta != Vec2::ZERO {
                     self.view.pan(trackpad_pan_delta);
@@ -562,12 +601,18 @@ impl App {
             // button's drawing/pattern-placement/Pan-tool duties. Tracked
             // explicitly (like `dragging_minimap`) so it keeps panning even
             // if the cursor slips off the canvas mid-drag.
-            if response.hover_pos().is_some() && ctx.input(|i| i.pointer.button_pressed(egui::PointerButton::Middle)) {
+            if response.hover_pos().is_some()
+                && ctx.input(|i| i.pointer.button_pressed(egui::PointerButton::Middle))
+            {
                 self.middle_pan_active = true;
             }
             if self.middle_pan_active {
-                let (delta, still_down) =
-                    ctx.input(|i| (i.pointer.delta(), i.pointer.button_down(egui::PointerButton::Middle)));
+                let (delta, still_down) = ctx.input(|i| {
+                    (
+                        i.pointer.delta(),
+                        i.pointer.button_down(egui::PointerButton::Middle),
+                    )
+                });
                 if delta != Vec2::ZERO {
                     self.view.pan(delta);
                 }
@@ -583,7 +628,13 @@ impl App {
             if !ctx.egui_wants_keyboard_input() {
                 ctx.input(|i| {
                     for event in &i.events {
-                        let &egui::Event::Key { key, pressed: true, repeat, .. } = event else {
+                        let &egui::Event::Key {
+                            key,
+                            pressed: true,
+                            repeat,
+                            ..
+                        } = event
+                        else {
                             continue;
                         };
                         match key {
@@ -593,7 +644,8 @@ impl App {
                             Key::C if !repeat => self.sim.clear(),
                             Key::R if !repeat => {
                                 if self.selected_pattern.is_some() {
-                                    self.selected_pattern_rotation = self.selected_pattern_rotation.wrapping_add(1) % 4;
+                                    self.selected_pattern_rotation =
+                                        self.selected_pattern_rotation.wrapping_add(1) % 4;
                                 } else {
                                     let (min, max) = self.view.visible_bounds(rect.size());
                                     self.sim.randomize(min, max, self.random_density);
@@ -604,8 +656,13 @@ impl App {
                                     self.selected_pattern_flip = !self.selected_pattern_flip;
                                 }
                             }
-                            Key::Plus | Key::Equals => self.view.zoom(KEY_ZOOM_STEP, rect.size() / 2.0, min_cell_size),
-                            Key::Minus => self.view.zoom(1.0 / KEY_ZOOM_STEP, rect.size() / 2.0, min_cell_size),
+                            Key::Plus | Key::Equals => {
+                                self.view.zoom(KEY_ZOOM_STEP, rect.size() / 2.0, min_cell_size)
+                            }
+                            Key::Minus => {
+                                self.view
+                                    .zoom(1.0 / KEY_ZOOM_STEP, rect.size() / 2.0, min_cell_size)
+                            }
                             Key::ArrowUp => self.view.pan(Vec2::new(0.0, PAN_STEP)),
                             Key::ArrowDown => self.view.pan(Vec2::new(0.0, -PAN_STEP)),
                             Key::ArrowLeft => self.view.pan(Vec2::new(PAN_STEP, 0.0)),
@@ -618,7 +675,10 @@ impl App {
 
             // The minimap lives in the bottom-right corner and intercepts
             // clicks/drags there for navigation instead of painting/stamping.
-            let minimap_rect = Rect::from_min_size(rect.max - MINIMAP_SIZE - Vec2::splat(MINIMAP_MARGIN), MINIMAP_SIZE);
+            let minimap_rect = Rect::from_min_size(
+                rect.max - MINIMAP_SIZE - Vec2::splat(MINIMAP_MARGIN),
+                MINIMAP_SIZE,
+            );
             if response.drag_started()
                 && let Some(p) = response.interact_pointer_pos()
                 && minimap_rect.contains(p)
@@ -627,7 +687,8 @@ impl App {
             }
             let minimap_handled = if self.dragging_minimap {
                 if let Some(p) = response.interact_pointer_pos().or_else(|| response.hover_pos()) {
-                    self.view.center_on(minimap_to_world(minimap_rect, p), self.canvas_size);
+                    self.view
+                        .center_on(minimap_to_world(minimap_rect, p), self.canvas_size);
                 }
                 if response.drag_stopped() {
                     self.dragging_minimap = false;
@@ -637,7 +698,8 @@ impl App {
                 && let Some(p) = response.interact_pointer_pos()
                 && minimap_rect.contains(p)
             {
-                self.view.center_on(minimap_to_world(minimap_rect, p), self.canvas_size);
+                self.view
+                    .center_on(minimap_to_world(minimap_rect, p), self.canvas_size);
                 true
             } else {
                 false
@@ -682,13 +744,19 @@ impl App {
                         if response.drag_started() {
                             if let Some(pointer) = response.interact_pointer_pos() {
                                 let cell = self.view.screen_to_cell(rect.min, pointer);
-                                let value = if erase { false } else { !self.sim.live.contains(&cell) };
+                                let value = if erase {
+                                    false
+                                } else {
+                                    !self.sim.live.contains(&cell)
+                                };
                                 self.sim.set_cell(cell, value);
                                 self.paint_value = Some(value);
                                 self.last_paint_cell = Some(cell);
                             }
                         } else if response.dragged() {
-                            if let (Some(pointer), Some(value)) = (response.interact_pointer_pos(), self.paint_value) {
+                            if let (Some(pointer), Some(value)) =
+                                (response.interact_pointer_pos(), self.paint_value)
+                            {
                                 let cell = self.view.screen_to_cell(rect.min, pointer);
                                 if Some(cell) != self.last_paint_cell {
                                     let from = self.last_paint_cell.unwrap_or(cell);
@@ -729,7 +797,10 @@ impl App {
             // whole map show, breaking the "minimum zoom = whole map"
             // invariant. `clamp_to_world` then keeps the viewport fully
             // inside the world borders.
-            self.view.cell_size = self.view.cell_size.clamp(min_cell_size.min(MAX_CELL_SIZE), MAX_CELL_SIZE);
+            self.view.cell_size = self
+                .view
+                .cell_size
+                .clamp(min_cell_size.min(MAX_CELL_SIZE), MAX_CELL_SIZE);
             self.view.clamp_to_world(self.canvas_size);
 
             let (min, max) = self.view.visible_bounds(rect.size());
@@ -771,7 +842,9 @@ impl App {
                     self.selected_pattern_flip,
                 );
                 for (dx, dy) in cells {
-                    let p = self.view.cell_to_screen(rect.min, (base.0 + dx as i64, base.1 + dy as i64));
+                    let p = self
+                        .view
+                        .cell_to_screen(rect.min, (base.0 + dx as i64, base.1 + dy as i64));
                     painter.rect_filled(
                         Rect::from_min_size(p, Vec2::splat(cs)),
                         0.0,
@@ -795,7 +868,9 @@ impl App {
             // The plane is finite: draw its edge wherever it's on-screen, so
             // it's clear painting/patterns stop working past this line.
             let world_screen_min = self.view.cell_to_screen(rect.min, WORLD_MIN);
-            let world_screen_max = self.view.cell_to_screen(rect.min, (WORLD_MAX.0 + 1, WORLD_MAX.1 + 1));
+            let world_screen_max = self
+                .view
+                .cell_to_screen(rect.min, (WORLD_MAX.0 + 1, WORLD_MAX.1 + 1));
             painter.rect_stroke(
                 Rect::from_min_max(world_screen_min, world_screen_max),
                 0.0,
@@ -821,19 +896,31 @@ impl App {
             // sync with the actual content and clip off the bottom of the
             // window on some platform/font combination; anchoring can't.
             egui::Area::new(egui::Id::new("zoom_overlay"))
-                .anchor(egui::Align2::LEFT_BOTTOM, Vec2::new(MINIMAP_MARGIN, -MINIMAP_MARGIN))
+                .anchor(
+                    egui::Align2::LEFT_BOTTOM,
+                    Vec2::new(MINIMAP_MARGIN, -MINIMAP_MARGIN),
+                )
                 .order(egui::Order::Foreground)
                 .show(&ctx, |ui| {
                     egui::Frame::popup(ui.style()).inner_margin(6.0).show(ui, |ui| {
                         ui.spacing_mut().item_spacing = Vec2::new(0.0, 4.0);
                         ui.vertical(|ui| {
                             let plus = egui::RichText::new("+").size(18.0).strong();
-                            if ui.add_sized(zoom_button_size, egui::Button::new(plus)).on_hover_text("Zoom in").clicked() {
+                            if ui
+                                .add_sized(zoom_button_size, egui::Button::new(plus))
+                                .on_hover_text("Zoom in")
+                                .clicked()
+                            {
                                 self.view.zoom(KEY_ZOOM_STEP, rect.size() / 2.0, min_cell_size);
                             }
                             let minus = egui::RichText::new("−").size(18.0).strong();
-                            if ui.add_sized(zoom_button_size, egui::Button::new(minus)).on_hover_text("Zoom out").clicked() {
-                                self.view.zoom(1.0 / KEY_ZOOM_STEP, rect.size() / 2.0, min_cell_size);
+                            if ui
+                                .add_sized(zoom_button_size, egui::Button::new(minus))
+                                .on_hover_text("Zoom out")
+                                .clicked()
+                            {
+                                self.view
+                                    .zoom(1.0 / KEY_ZOOM_STEP, rect.size() / 2.0, min_cell_size);
                             }
                             ui.separator();
                             if ui
@@ -894,13 +981,25 @@ fn draw_minimap(sim: &SimState, view: &View, canvas_size: Vec2, painter: &egui::
         minimap_rect.min.y + (vmin.1.clamp(WORLD_MIN.1, WORLD_MAX.1) as f32 - WORLD_MIN.1 as f32) * sy,
     );
     let vp_max = Pos2::new(
-        minimap_rect.min.x + ((vmax.0 + 1).clamp(WORLD_MIN.0, WORLD_MAX.0 + 1) as f32 - WORLD_MIN.0 as f32) * sx,
-        minimap_rect.min.y + ((vmax.1 + 1).clamp(WORLD_MIN.1, WORLD_MAX.1 + 1) as f32 - WORLD_MIN.1 as f32) * sy,
+        minimap_rect.min.x
+            + ((vmax.0 + 1).clamp(WORLD_MIN.0, WORLD_MAX.0 + 1) as f32 - WORLD_MIN.0 as f32) * sx,
+        minimap_rect.min.y
+            + ((vmax.1 + 1).clamp(WORLD_MIN.1, WORLD_MAX.1 + 1) as f32 - WORLD_MIN.1 as f32) * sy,
     );
     let viewport_rect = Rect::from_min_max(vp_min, vp_max).intersect(minimap_rect);
-    painter.rect_stroke(viewport_rect, 0.0, Stroke::new(1.5, Color32::from_rgb(255, 210, 90)), StrokeKind::Outside);
+    painter.rect_stroke(
+        viewport_rect,
+        0.0,
+        Stroke::new(1.5, Color32::from_rgb(255, 210, 90)),
+        StrokeKind::Outside,
+    );
 
-    painter.rect_stroke(minimap_rect, 4.0, Stroke::new(1.0, Color32::from_gray(110)), StrokeKind::Outside);
+    painter.rect_stroke(
+        minimap_rect,
+        4.0,
+        Stroke::new(1.0, Color32::from_gray(110)),
+        StrokeKind::Outside,
+    );
 }
 
 /// Bresenham line between two cells, so fast drags don't leave gaps.
@@ -942,7 +1041,8 @@ fn pattern_row(ui: &mut egui::Ui, selected: bool, cells: &[(i32, i32)], name: &s
     let (rect, response) = ui.allocate_exact_size(Vec2::new(ui.available_width(), icon_size), Sense::click());
 
     let visuals = ui.style().interact_selectable(&response, selected);
-    ui.painter().rect_filled(rect, visuals.corner_radius, visuals.weak_bg_fill);
+    ui.painter()
+        .rect_filled(rect, visuals.corner_radius, visuals.weak_bg_fill);
 
     let icon_rect = Rect::from_min_size(rect.min, Vec2::splat(icon_size));
     paint_pattern_preview(ui.painter(), icon_rect, cells);
@@ -977,10 +1077,16 @@ fn paint_pattern_preview(painter: &egui::Painter, rect: Rect, cells: &[(i32, i32
     // patterns (e.g. the 36-wide Gosper Glider Gun) instead of forcing at
     // least 1px/cell, which used to make them overflow the tiny icon and
     // look like an unrecognizable blob.
-    let scale = ((rect.width() - pad * 2.0) / w).min((rect.height() - pad * 2.0) / h).clamp(0.3, 6.0);
+    let scale = ((rect.width() - pad * 2.0) / w)
+        .min((rect.height() - pad * 2.0) / h)
+        .clamp(0.3, 6.0);
     let origin = rect.min + Vec2::new(pad, pad);
     for &(x, y) in cells {
         let p = origin + Vec2::new((x - min_x) as f32 * scale, (y - min_y) as f32 * scale);
-        painter.rect_filled(Rect::from_min_size(p, Vec2::splat(scale.max(1.0))), 0.0, Color32::from_rgb(120, 220, 130));
+        painter.rect_filled(
+            Rect::from_min_size(p, Vec2::splat(scale.max(1.0))),
+            0.0,
+            Color32::from_rgb(120, 220, 130),
+        );
     }
 }

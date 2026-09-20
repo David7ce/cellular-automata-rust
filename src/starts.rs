@@ -42,7 +42,8 @@ fn scattered_pattern(name: &str) -> Option<(&'static str, i64)> {
 /// Whether `name` can be loaded with the active rule's collection - the
 /// pattern-based starts need their pattern to exist in it.
 pub fn is_available(name: &str, library: &[Pattern]) -> bool {
-    name == "Random soup" || scattered_pattern(name).is_some_and(|(pattern, _)| library.iter().any(|p| p.name == pattern))
+    name == "Random soup"
+        || scattered_pattern(name).is_some_and(|(pattern, _)| library.iter().any(|p| p.name == pattern))
 }
 
 /// Scatters copies of `pattern_name` across the whole world on a lattice of
@@ -90,7 +91,10 @@ mod tests {
     use crate::rules::RuleSet;
 
     fn empty_sim_and_library() -> (SimState, Vec<Pattern>) {
-        (SimState::new(RuleSet::from_counts(&[3], &[2, 3])), patterns::library_for(&RuleSet::from_counts(&[3], &[2, 3])))
+        (
+            SimState::new(RuleSet::from_counts(&[3], &[2, 3])),
+            patterns::library_for(&RuleSet::from_counts(&[3], &[2, 3])),
+        )
     }
 
     #[test]
@@ -115,7 +119,10 @@ mod tests {
         let (mut sim, library) = empty_sim_and_library();
         for name in ["Glider field", "Gosper gun field", "Pulsar field"] {
             apply(&mut sim, name, &library, 1.0);
-            assert!(!sim.live.is_empty(), "{name} at density 1.0 should place something");
+            assert!(
+                !sim.live.is_empty(),
+                "{name} at density 1.0 should place something"
+            );
         }
     }
 }

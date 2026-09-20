@@ -19,7 +19,10 @@ pub struct View {
 
 impl Default for View {
     fn default() -> Self {
-        View { offset: Vec2::new(-20.0, -15.0), cell_size: 16.0 }
+        View {
+            offset: Vec2::new(-20.0, -15.0),
+            cell_size: 16.0,
+        }
     }
 }
 
@@ -107,7 +110,9 @@ fn clamp_axis(offset: f32, visible: f32, world_min: f32, world_size: f32) -> f32
 pub fn min_cell_size_to_fit_world(canvas_size: Vec2) -> f32 {
     let world_w = (WORLD_MAX.0 - WORLD_MIN.0 + 1) as f32;
     let world_h = (WORLD_MAX.1 - WORLD_MIN.1 + 1) as f32;
-    (canvas_size.x / world_w).min(canvas_size.y / world_h).max(ABSOLUTE_MIN_CELL_SIZE)
+    (canvas_size.x / world_w)
+        .min(canvas_size.y / world_h)
+        .max(ABSOLUTE_MIN_CELL_SIZE)
 }
 
 #[cfg(test)]
@@ -117,7 +122,10 @@ mod tests {
     #[test]
     fn clamp_pulls_a_far_away_offset_back_inside_the_world() {
         let canvas = Vec2::new(800.0, 600.0);
-        let mut view = View { offset: Vec2::new(-1_000_000.0, 1_000_000.0), cell_size: 16.0 };
+        let mut view = View {
+            offset: Vec2::new(-1_000_000.0, 1_000_000.0),
+            cell_size: 16.0,
+        };
         view.clamp_to_world(canvas);
 
         let visible_w = canvas.x / view.cell_size;
@@ -134,7 +142,10 @@ mod tests {
     #[test]
     fn clamp_leaves_an_already_inside_offset_untouched() {
         let canvas = Vec2::new(800.0, 600.0);
-        let mut view = View { offset: Vec2::new(-20.0, -15.0), cell_size: 16.0 };
+        let mut view = View {
+            offset: Vec2::new(-20.0, -15.0),
+            cell_size: 16.0,
+        };
         view.clamp_to_world(canvas);
         assert_eq!(view.offset, Vec2::new(-20.0, -15.0));
     }
@@ -143,12 +154,18 @@ mod tests {
     fn clamp_centers_an_axis_when_the_viewport_is_wider_than_the_world() {
         let cell_size = 0.1; // zoomed far out
         let canvas = Vec2::new(400.0, 300.0);
-        let mut view = View { offset: Vec2::ZERO, cell_size };
+        let mut view = View {
+            offset: Vec2::ZERO,
+            cell_size,
+        };
         view.clamp_to_world(canvas);
 
         let visible_w = canvas.x / cell_size;
         let world_w = (WORLD_MAX.0 - WORLD_MIN.0 + 1) as f32;
-        assert!(visible_w > world_w, "test setup should make the viewport wider than the world");
+        assert!(
+            visible_w > world_w,
+            "test setup should make the viewport wider than the world"
+        );
 
         let expected_x = WORLD_MIN.0 as f32 - (visible_w - world_w) / 2.0;
         assert!((view.offset.x - expected_x).abs() < 1e-3);
@@ -163,7 +180,10 @@ mod tests {
         // constraint, so the fit value should come from that axis.
         let canvas = Vec2::new(world_w * 10.0, world_h);
         let min_cs = min_cell_size_to_fit_world(canvas);
-        assert!((min_cs - 1.0).abs() < 1e-3, "expected height-bound fit of 1px/cell, got {min_cs}");
+        assert!(
+            (min_cs - 1.0).abs() < 1e-3,
+            "expected height-bound fit of 1px/cell, got {min_cs}"
+        );
 
         // And the resulting viewport at that zoom must be at least as big as
         // the whole world on both axes (so the whole map really is visible).
@@ -175,9 +195,16 @@ mod tests {
     fn zoom_never_goes_below_the_passed_in_minimum() {
         let canvas = Vec2::new(200.0, 150.0);
         let min_cs = min_cell_size_to_fit_world(canvas);
-        let mut view = View { offset: Vec2::ZERO, cell_size: min_cs };
+        let mut view = View {
+            offset: Vec2::ZERO,
+            cell_size: min_cs,
+        };
         // Try to zoom out far past the minimum in one step.
         view.zoom(0.001, canvas / 2.0, min_cs);
-        assert!((view.cell_size - min_cs).abs() < 1e-6, "zoom should clamp to min_cell_size, got {}", view.cell_size);
+        assert!(
+            (view.cell_size - min_cs).abs() < 1e-6,
+            "zoom should clamp to min_cell_size, got {}",
+            view.cell_size
+        );
     }
 }

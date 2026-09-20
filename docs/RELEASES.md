@@ -3,7 +3,7 @@
 Changelog of shipped work, newest first. For what's planned next, see
 [ROADMAP.md](ROADMAP.md).
 
-## Unreleased — Golly interchange and per-rule pattern collections
+## v0.1.5 — 2026-09-20: Golly interchange and per-rule pattern collections
 
 - **Golly-compatible RLE and rule strings.** `rle.rs` rewritten: `parse`
   returns `Result` with line-numbered errors, stops at `!`, bounds run
@@ -23,6 +23,13 @@ Changelog of shipped work, newest first. For what's planned next, see
   disabled for the same reason.
 - **`SimState::tick` is bounded** (8 generations per call, backlog dropped)
   so a rule/board slower than the speed slider no longer freezes the window.
+- **Formatting is now a CI gate.** `rustfmt.toml` (`max_width = 110`) added,
+  the tree formatted once, and `cargo fmt --check` runs in CI before build.
+- **`Preset::class` is an enum** (`rules::Class`) instead of a string matched
+  against a hardcoded list, so a typo is a compile error rather than a
+  preset silently missing from the dropdown.
+- **`step()` counts births/deaths in one pass** instead of two set
+  differences (`deaths = live + births - next`).
 - Tests added for the rule engine (generic rules, world boundary,
   `step_n`, tick bound), rule parsing and RLE round trips.
 

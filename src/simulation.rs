@@ -183,8 +183,10 @@ impl SimState {
 
     pub fn step(&mut self) {
         let next = next_generation(&self.live, &self.rule);
-        self.last_births = next.difference(&self.live).count() as u64;
-        self.last_deaths = self.live.difference(&next).count() as u64;
+        // One pass: next.len() == live.len() + births - deaths.
+        let births = next.iter().filter(|c| !self.live.contains(c)).count();
+        self.last_births = births as u64;
+        self.last_deaths = (self.live.len() + births - next.len()) as u64;
         self.live = next;
         self.rebuild_chunks();
         self.generation += 1;
@@ -235,8 +237,16 @@ const MAX_STEPS_PER_TICK: u32 = 8;
 /// the origin) here alone — `next_generation` itself, `RuleSet` (already
 /// generic over "how many neighbors", 0-8 today), and every other consumer
 /// of `Cell` would be unaffected by that change.
-const NEIGHBOR_OFFSETS: [(i64, i64); 8] =
-    [(-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1)];
+const NEIGHBOR_OFFSETS: [(i64, i64); 8] = [
+    (-1, -1),
+    (0, -1),
+    (1, -1),
+    (-1, 0),
+    (1, 0),
+    (-1, 1),
+    (0, 1),
+    (1, 1),
+];
 
 pub(crate) fn next_generation(live: &HashSet<Cell>, rule: &RuleSet) -> HashSet<Cell> {
     let mut counts: HashMap<Cell, u8> = HashMap::with_capacity(live.len() * 4);
@@ -320,6 +330,19 @@ mod tests {
         let mut c = sim_with("3o!");
         c.step_n(0);
         assert_eq!(c.generation, 1);
+    }
+
+    #[test]
+    fn step_reports_births_and_deaths() {
+        let mut blinker = sim_with("3o!");
+        blinker.step();
+        assert_eq!((blinker.last_births, blinker.last_deaths), (2, 2));
+        let mut glider = sim_with("bo$2bo$3o!");
+        glider.step();
+        assert_eq!(
+            glider.live.len() as u64,
+            5 + glider.last_births - glider.last_deaths
+        );
     }
 
     #[test]

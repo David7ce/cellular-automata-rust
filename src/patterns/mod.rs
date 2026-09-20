@@ -65,14 +65,32 @@ struct Collection {
 }
 
 const COLLECTIONS: &[Collection] = &[
-    Collection { name: "Conway's Life", rule: "B3/S23", defs: life::DEFS },
-    Collection { name: "HighLife", rule: "B36/S23", defs: highlife::DEFS },
-    Collection { name: "Seeds", rule: "B2/S", defs: seeds::DEFS },
-    Collection { name: "Day & Night", rule: "B3678/S34678", defs: daynight::DEFS },
+    Collection {
+        name: "Conway's Life",
+        rule: "B3/S23",
+        defs: life::DEFS,
+    },
+    Collection {
+        name: "HighLife",
+        rule: "B36/S23",
+        defs: highlife::DEFS,
+    },
+    Collection {
+        name: "Seeds",
+        rule: "B2/S",
+        defs: seeds::DEFS,
+    },
+    Collection {
+        name: "Day & Night",
+        rule: "B3678/S34678",
+        defs: daynight::DEFS,
+    },
 ];
 
 fn collection_for(rule: &RuleSet) -> Option<&'static Collection> {
-    COLLECTIONS.iter().find(|c| RuleSet::from_bs_string(c.rule).is_ok_and(|r| r == *rule))
+    COLLECTIONS
+        .iter()
+        .find(|c| RuleSet::from_bs_string(c.rule).is_ok_and(|r| r == *rule))
 }
 
 /// The built-in patterns for `rule` — empty when the rule has no collection.
@@ -81,7 +99,11 @@ pub fn library_for(rule: &RuleSet) -> Vec<Pattern> {
         .map(|c| {
             c.defs
                 .iter()
-                .map(|d| Pattern { name: d.name.to_string(), category: d.category, cells: rle::cells(d.rle) })
+                .map(|d| Pattern {
+                    name: d.name.to_string(),
+                    category: d.category,
+                    cells: rle::cells(d.rle),
+                })
                 .collect()
         })
         .unwrap_or_default()
@@ -122,7 +144,6 @@ mod tests {
         let transformed = transform_cells(&cells, 1, true);
         assert_eq!(transformed, vec![(0, 0), (0, -1), (-1, 0)]);
     }
-
 
     /// Every pattern's cell count checked against its well-known population
     /// (a LifeWiki-documented fact for each), independent of the exact
@@ -167,9 +188,16 @@ mod tests {
         ];
 
         let lib = library_for(&RuleSet::from_bs_string("B3/S23").unwrap());
-        assert_eq!(lib.len(), expected.len(), "DEFS and the expected-population table drifted apart");
+        assert_eq!(
+            lib.len(),
+            expected.len(),
+            "DEFS and the expected-population table drifted apart"
+        );
         for &(name, count) in expected {
-            let pattern = lib.iter().find(|p| p.name == name).unwrap_or_else(|| panic!("missing pattern {name}"));
+            let pattern = lib
+                .iter()
+                .find(|p| p.name == name)
+                .unwrap_or_else(|| panic!("missing pattern {name}"));
             assert_eq!(pattern.cells.len(), count, "{name} population mismatch");
         }
     }
@@ -186,11 +214,19 @@ mod tests {
                     Category::Oscillator => (200, |b| matches!(b, Behavior::Oscillator { .. })),
                     Category::Spaceship => (200, |b| matches!(b, Behavior::Spaceship { .. })),
                     // Long-running: must still be changing after 100 generations.
-                    Category::Gun | Category::Methuselah | Category::Replicator => (100, |b| *b == Behavior::Unsettled),
+                    Category::Gun | Category::Methuselah | Category::Replicator => {
+                        (100, |b| *b == Behavior::Unsettled)
+                    }
                     Category::Imported => panic!("built-in collections have no imported patterns"),
                 };
                 let behavior = classify(&pattern.cells, &rule, bound);
-                assert!(ok(&behavior), "{} / {}: {behavior:?} is not {:?}", collection.name, pattern.name, pattern.category);
+                assert!(
+                    ok(&behavior),
+                    "{} / {}: {behavior:?} is not {:?}",
+                    collection.name,
+                    pattern.name,
+                    pattern.category
+                );
             }
         }
     }
@@ -209,7 +245,12 @@ mod tests {
                     }
                 }
                 let (early, late) = (populations[0], populations[1]);
-                assert!(late > early, "{} / {} stopped emitting", collection.name, pattern.name);
+                assert!(
+                    late > early,
+                    "{} / {} stopped emitting",
+                    collection.name,
+                    pattern.name
+                );
             }
         }
     }
@@ -242,7 +283,10 @@ mod tests {
                             (if t & 1 != 0 { -x } else { x }, if t & 2 != 0 { -y } else { y })
                         })
                         .collect();
-                    let (mx, my) = (v.iter().map(|c| c.0).min().unwrap(), v.iter().map(|c| c.1).min().unwrap());
+                    let (mx, my) = (
+                        v.iter().map(|c| c.0).min().unwrap(),
+                        v.iter().map(|c| c.1).min().unwrap(),
+                    );
                     v.iter_mut().for_each(|c| *c = (c.0 - mx, c.1 - my));
                     v.sort();
                     v
@@ -259,7 +303,16 @@ mod tests {
                 left.remove(&start);
                 while let Some((x, y)) = stack.pop() {
                     part.push((x, y));
-                    for (dx, dy) in [(-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1)] {
+                    for (dx, dy) in [
+                        (-1, -1),
+                        (0, -1),
+                        (1, -1),
+                        (-1, 0),
+                        (1, 0),
+                        (-1, 1),
+                        (0, 1),
+                        (1, 1),
+                    ] {
                         if left.remove(&(x + dx, y + dy)) {
                             stack.push((x + dx, y + dy));
                         }
@@ -269,7 +322,10 @@ mod tests {
             }
             out
         }
-        let original: Shape = rle::cells("2b3o$bo2bo$o3bo$o2bo$3o!").iter().map(|&(x, y)| (x as i64, y as i64)).collect();
+        let original: Shape = rle::cells("2b3o$bo2bo$o3bo$o2bo$3o!")
+            .iter()
+            .map(|&(x, y)| (x as i64, y as i64))
+            .collect();
         let step = |rule: &str, generations: u32| {
             let rule = RuleSet::from_bs_string(rule).unwrap();
             let mut live: HashSet<_> = original.iter().copied().collect();
@@ -281,8 +337,17 @@ mod tests {
 
         let copies = components(&step("B36/S23", 12));
         assert_eq!(copies.len(), 2);
-        assert!(copies.iter().all(|c| shape_up_to_symmetry(c) == shape_up_to_symmetry(&original)));
+        assert!(
+            copies
+                .iter()
+                .all(|c| shape_up_to_symmetry(c) == shape_up_to_symmetry(&original))
+        );
         let conway = components(&step("B3/S23", 12));
-        assert!(conway.len() != 2 || conway.iter().any(|c| shape_up_to_symmetry(c) != shape_up_to_symmetry(&original)));
+        assert!(
+            conway.len() != 2
+                || conway
+                    .iter()
+                    .any(|c| shape_up_to_symmetry(c) != shape_up_to_symmetry(&original))
+        );
     }
 }
