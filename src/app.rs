@@ -1,7 +1,8 @@
 use eframe::egui::{self, Color32, Key, Pos2, Rect, Sense, Stroke, StrokeKind, Vec2};
 
 use crate::patterns::{self, Category, Pattern};
-use crate::rules;
+use crate::rle;
+use crate::rules::{self, RuleSet};
 use crate::simulation::{Cell, SimState, CHUNK_SIZE, WORLD_MAX, WORLD_MIN};
 use crate::starts;
 use crate::view::{self, View, MAX_CELL_SIZE};
@@ -91,6 +92,8 @@ pub struct App {
     /// always-visible essentials — the "⚙" button toggles this, collapsing
     /// them to reclaim canvas height.
     show_extra_controls: bool,
+    /// Short feedback line for clipboard import/export, shown in the top bar.
+    status: Option<String>,
 }
 
 impl App {
@@ -98,12 +101,12 @@ impl App {
         let rule = rules::preset_rule(&rules::PRESETS[0]);
         let mut sim = SimState::new(rule);
         // Seed with a glider so the canvas isn't empty on first launch.
-        sim.stamp(&crate::rle::parse("bo$2bo$3o!"), (2, 2));
+        sim.stamp(&rle::cells("bo$2bo$3o!"), (2, 2));
 
         App {
             sim,
             view: View::default(),
-            library: patterns::library(),
+            library: patterns::library_for(&rule),
             selected_pattern: None,
             preset_name: rules::PRESETS[0].name,
             preset_class: rules::PRESETS[0].class,
@@ -121,7 +124,44 @@ impl App {
             middle_pan_active: false,
             show_side_panel: false,
             show_extra_controls: true,
+            status: None,
         }
+    }
+
+    /// Switches the active rule and everything derived from it: the preset
+    /// label, the pattern collection for that rule, and any selection that
+    /// only made sense under the old one.
+    fn set_rule(&mut self, rule: RuleSet) {
+        self.sim.rule = rule;
+        let preset = rules::PRESETS.iter().find(|p| rules::preset_rule(p) == rule);
+        (self.preset_name, self.preset_class) = preset.map_or(("Custom", "custom"), |p| (p.name, p.class));
+        self.library = patterns::library_for(&rule);
+        self.selected_pattern = None;
+        self.selected_start = None;
+    }
+
+    /// Golly interchange: RLE text pasted from the clipboard becomes the
+    /// pattern in hand. If its header names a different rule, that rule is
+    /// activated first (as Golly does when opening a file).
+    fn paste(&mut self, text: &str) {
+        let rle = match rle::parse(text) {
+            Ok(rle) if rle.cells.is_empty() => return self.status = Some("Paste failed: no live cells".into()),
+            Ok(rle) => rle,
+            Err(e) => return self.status = Some(format!("Paste failed: {e}")),
+        };
+        if let Some(rule) = rle.rule
+            && rule != self.sim.rule
+        {
+            self.set_rule(rule);
+        }
+        self.status =
+            Some(format!("Pasted {} cells under {} - click canvas to place", rle.cells.len(), self.sim.rule.to_bs_string()));
+        self.library.retain(|p| p.category != Category::Imported);
+        self.library.push(Pattern { name: "Pasted pattern".into(), category: Category::Imported, cells: rle.cells });
+        self.selected_pattern = Some(self.library.len() - 1);
+        self.selected_pattern_rotation = 0;
+        self.selected_pattern_flip = false;
+        self.tool = Tool::Draw;
     }
 }
 
@@ -130,6 +170,12 @@ impl eframe::App for App {
         let ctx = ui.ctx().clone();
         let dt = ctx.input(|i| i.stable_dt);
         self.sim.tick(dt);
+        let pasted = ctx.input(|i| i.events.iter().find_map(|e| if let egui::Event::Paste(t) = e { Some(t.clone()) } else { None }));
+        if let Some(text) = pasted
+            && !ctx.egui_wants_keyboard_input()
+        {
+            self.paste(&text);
+        }
         if self.sim.running {
             ctx.request_repaint();
         }
@@ -204,6 +250,10 @@ impl App {
                 ui.separator();
                 ui.label(format!("Gen: {}", self.sim.generation));
                 ui.label(format!("Live: {}", self.sim.live.len()));
+                if let Some(status) = &self.status {
+                    ui.separator();
+                    ui.label(egui::RichText::new(status).small().italics());
+                }
             });
 
             if !self.show_extra_controls {
@@ -236,9 +286,7 @@ impl App {
                                     let selected = self.preset_name == preset.name;
                                     let row = egui::Button::selectable(selected, preset.name);
                                     if ui.add_sized([width, 0.0], row).clicked() {
-                                        self.preset_name = preset.name;
-                                        self.preset_class = preset.class;
-                                        self.sim.rule = rules::preset_rule(preset);
+                                        self.set_rule(rules::preset_rule(preset));
                                     }
                                 }
                             });
@@ -272,7 +320,9 @@ impl App {
                     .selected_text(self.selected_start.map_or("(choose one)", |idx| starts::START_CONFIGS[idx]))
                     .show_ui(ui, |ui| {
                         for (idx, name) in starts::START_CONFIGS.iter().enumerate() {
-                            ui.selectable_value(&mut self.selected_start, Some(idx), *name);
+                            if starts::is_available(name, &self.library) {
+                                ui.selectable_value(&mut self.selected_start, Some(idx), *name);
+                            }
                         }
                     });
                 if ui
@@ -290,6 +340,14 @@ impl App {
                 ui.separator();
                 if ui.button("🗑").on_hover_text("Clear: erase every live cell").clicked() {
                     self.sim.clear();
+                }
+                if ui
+                    .button("Copy RLE")
+                    .on_hover_text("Copy the board as Golly-compatible RLE. To bring a pattern in from Golly, copy it there and press Ctrl+V here")
+                    .clicked()
+                {
+                    ui.ctx().copy_text(rle::to_rle(self.sim.live.iter().copied(), self.sim.rule));
+                    self.status = Some(format!("Copied {} cells as RLE", self.sim.live.len()));
                 }
                 if ui
                     .button("🎲")
@@ -315,7 +373,8 @@ impl App {
                 let mut changed = false;
                 for n in 0..=8u8 {
                     let mut on = self.sim.rule.birth[n as usize];
-                    if ui.checkbox(&mut on, n.to_string()).changed() {
+                    // B0 is unsupported (see `RuleSet::from_bs_string`).
+                    if ui.add_enabled(n != 0, egui::Checkbox::new(&mut on, n.to_string())).changed() {
                         self.sim.rule.birth[n as usize] = on;
                         changed = true;
                     }
@@ -329,8 +388,7 @@ impl App {
                     }
                 }
                 if changed {
-                    self.preset_name = "Custom";
-                    self.preset_class = "custom";
+                    self.set_rule(self.sim.rule);
                 }
             });
         });
@@ -365,28 +423,17 @@ impl App {
                             }
                         });
                     });
-                    // These category names (still life/oscillator/spaceship/
-                    // gun/methuselah) describe how each shape behaves
-                    // specifically *under Conway's Life* (B3/S23) — that's
-                    // the rule the whole naming convention comes from. A
-                    // "gun" only actually keeps emitting gliders forever
-                    // under a rule where gliders are stable/periodic; stamp
-                    // the same cells under a different rule (say, an
-                    // explosive or chaotic one) and they just evolve as
-                    // whatever that rule does with them, not necessarily
-                    // anything glider- or gun-like. Only shown when it's
-                    // actually relevant, i.e. some other rule is active.
-                    if self.preset_name != "Conway's Life" {
-                        ui.label(
+                    match patterns::collection_name(&self.sim.rule) {
+                        Some(name) => ui.label(egui::RichText::new(format!("{name} collection")).small().italics()),
+                        None => ui.label(
                             egui::RichText::new(format!(
-                                "⚠ Names below describe behavior under Conway's Life — the active \"{}\" rule may not preserve it.",
-                                self.preset_name
+                                "No built-in patterns for {}. Paste RLE from Golly with Ctrl+V.",
+                                self.sim.rule.to_bs_string()
                             ))
                             .small()
-                            .italics()
-                            .color(Color32::from_rgb(220, 180, 90)),
-                        );
-                    }
+                            .italics(),
+                        ),
+                    };
                     if self.selected_pattern.is_some() {
                         ui.horizontal(|ui| {
                             ui.label("Click canvas to place. ");
@@ -410,13 +457,16 @@ impl App {
                         .max_height((canvas_rect.height() - 90.0).max(300.0))
                         .show(ui, |ui| {
                             for category in Category::ALL {
+                                if !self.library.iter().any(|p| p.category == category) {
+                                    continue;
+                                }
                                 egui::CollapsingHeader::new(category.label()).default_open(true).show(ui, |ui| {
                                     for (idx, pattern) in self.library.iter().enumerate() {
                                         if pattern.category != category {
                                             continue;
                                         }
                                         let selected = self.selected_pattern == Some(idx);
-                                        if pattern_row(ui, selected, &pattern.cells, pattern.name).clicked() {
+                                        if pattern_row(ui, selected, &pattern.cells, &pattern.name).clicked() {
                                             self.selected_pattern = Some(idx);
                                             self.tool = Tool::Draw;
                                         }

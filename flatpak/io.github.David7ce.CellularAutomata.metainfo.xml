@@ -8,10 +8,10 @@
   <description>
     <p>
       A native desktop sandbox for Life-like cellular automata — Conway's
-      Game of Life is just one of the 22 built-in rules, grouped by
+      Game of Life is just one of the 21 built-in rules, grouped by
       long-term behavior (stable/chaotic/explosive). Built with egui/eframe.
-      Includes a 35-pattern library (still lifes, oscillators, spaceships,
-      guns, methuselahs), density-based starting configurations, a
+      Includes a pattern collection per ruleset (still lifes, oscillators,
+      spaceships, guns, methuselahs), Golly RLE copy/paste, density-based starting configurations, a
       Draw/Pan/Eraser toolbox, Google Maps-style pan and zoom, and a
       minimap.
     </p>

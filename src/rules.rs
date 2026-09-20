@@ -1,6 +1,6 @@
 /// A totalistic Life-like rule: how many live neighbors (0-8) are required
 /// for a dead cell to be born, and for a live cell to survive.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct RuleSet {
     pub birth: [bool; 9],
     pub survive: [bool; 9],
@@ -16,6 +16,41 @@ impl RuleSet {
             rule.survive[n as usize] = true;
         }
         rule
+    }
+
+    /// Parses Golly-style rule text: `B3/S23` (any case, either order) or the
+    /// legacy `S/B` digit form `23/3`. Rejects, rather than silently
+    /// mis-simulating, what this engine cannot run: B0 (the sparse step
+    /// only visits cells that already have a live neighbour), the `:T`/`:P`
+    /// bounded-grid suffix, `V`/`H` neighbourhoods and Generations rules.
+    pub fn from_bs_string(text: &str) -> Result<Self, String> {
+        let text = text.trim().to_ascii_lowercase();
+        if text.contains(':') {
+            return Err("bounded-grid suffix (:T/:P) is not supported".into());
+        }
+        let parts: Vec<&str> = text.split('/').collect();
+        let [first, second] = parts[..] else {
+            return Err(format!("expected two parts separated by '/', got \"{text}\""));
+        };
+        let (birth, survive) =
+            match (first.strip_prefix('b'), second.strip_prefix('s'), first.strip_prefix('s'), second.strip_prefix('b')) {
+                (Some(b), Some(s), _, _) => (b, s),
+                (_, _, Some(s), Some(b)) => (b, s),
+                _ => (second, first), // legacy "S/B", digits only
+            };
+        let mut rule = RuleSet { birth: [false; 9], survive: [false; 9] };
+        for (digits, table) in [(birth, &mut rule.birth), (survive, &mut rule.survive)] {
+            for ch in digits.chars() {
+                match ch.to_digit(10) {
+                    Some(n) if n <= 8 => table[n as usize] = true,
+                    _ => return Err(format!("unsupported character '{ch}' in rule \"{text}\"")),
+                }
+            }
+        }
+        if rule.birth[0] {
+            return Err("B0 rules are not supported".into());
+        }
+        Ok(rule)
     }
 
     /// Formats as standard "B.../S..." notation.
@@ -49,7 +84,6 @@ pub const PRESETS: &[Preset] = &[
     Preset { name: "Flakes", birth: &[3], survive: &[0, 1, 2, 3, 4, 5, 6, 7, 8], class: "explosive" },
     Preset { name: "Gnarl", birth: &[1], survive: &[1], class: "explosive" },
     Preset { name: "HighLife", birth: &[3, 6], survive: &[2, 3], class: "stable" },
-    Preset { name: "Inverse Life", birth: &[0, 1, 2, 3, 4, 7, 8], survive: &[3, 4, 6, 7, 8], class: "explosive" },
     Preset { name: "Long Life", birth: &[3, 4, 5], survive: &[5], class: "stable" },
     Preset { name: "Maze", birth: &[3], survive: &[1, 2, 3, 4, 5], class: "explosive" },
     Preset { name: "Mazectric", birth: &[3], survive: &[1, 2, 3, 4], class: "stable" },
@@ -64,4 +98,37 @@ pub const PRESETS: &[Preset] = &[
 
 pub fn preset_rule(preset: &Preset) -> RuleSet {
     RuleSet::from_counts(preset.birth, preset.survive)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_golly_spellings_to_the_same_rule() {
+        let life = RuleSet::from_counts(&[3], &[2, 3]);
+        for text in ["B3/S23", "b3/s23", " S23/B3 ", "23/3"] {
+            assert_eq!(RuleSet::from_bs_string(text), Ok(life), "{text}");
+        }
+    }
+
+    #[test]
+    fn every_preset_round_trips_through_its_string() {
+        for preset in PRESETS {
+            let rule = preset_rule(preset);
+            assert_eq!(RuleSet::from_bs_string(&rule.to_bs_string()), Ok(rule), "{}", preset.name);
+        }
+    }
+
+    #[test]
+    fn rejects_what_the_engine_cannot_run() {
+        for text in ["", "B3", "B3/S23/4", "B0/S", "B3/S23:T30,20", "B3/S23V", "B39/S23", "B3/Sx"] {
+            assert!(RuleSet::from_bs_string(text).is_err(), "{text:?} should be rejected");
+        }
+    }
+
+    #[test]
+    fn no_preset_uses_b0() {
+        assert!(PRESETS.iter().all(|p| !p.birth.contains(&0)));
+    }
 }

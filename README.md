@@ -4,7 +4,7 @@ A native desktop sandbox for Life-like cellular automata, built with
 [egui](https://github.com/emilk/egui) /
 [eframe](https://github.com/emilk/egui/tree/main/crates/eframe). Runs on
 Windows, macOS and Linux from the same codebase. Conway's Game of Life
-(B3/S23) is one of 22 built-in rules — the whole point of the generic B/S
+(B3/S23) is one of 21 built-in rules — the whole point of the generic B/S
 rule engine below is that Conway's is a single variant, not the app's
 identity.
 
@@ -14,13 +14,13 @@ identity.
   are required for a dead cell to be born, and for a live cell to survive)
   is expressed as a `RuleSet { birth: [bool; 9], survive: [bool; 9] }` and
   evaluated by one generic step function. No rule is hardcoded separately.
-- **Rule presets**: 22 built-in Life-like rules — Conway's Life, 2x2, 34 Life,
+- **Rule presets**: 21 built-in Life-like rules — Conway's Life, 2x2, 34 Life,
   Assimilation, Coagulations, Coral, Day & Night, Diamoeba, Flakes, Gnarl,
-  HighLife, Inverse Life, Long Life, Maze, Mazectric, Move, Pseudo Life,
+  HighLife, Long Life, Maze, Mazectric, Move, Pseudo Life,
   Replicator, Seeds, Serviettes, Stains, Walled Cities. The "Rule" dropdown
   groups them by long-term random-soup behavior — Chaotic / Explosive /
   Stable section headers, presets indented underneath — instead of one flat
-  22-entry list with the class as a same-line suffix on every row. Each row
+  list with the class as a same-line suffix on every row. Each row
   is clickable/highlighted across its full width, not just the text. Plus 9
   Birth / 9 Survive checkboxes to build any custom rule by hand.
 - **Finite 960x480 plane** (2:1 — wider than plain 16:9, chosen to better
@@ -136,13 +136,23 @@ identity.
   overlay's buttons are icon buttons with hover tooltips spelling out what
   each one does, using symbols from egui's bundled icon font rather than an
   added dependency.
-- **Pattern library**: 35 well-known patterns across 5 categories (still
-  lifes, oscillators, spaceships, guns, methuselahs), decoded from standard
-  RLE strings verified against LifeWiki and stamped onto the canvas on
-  click. Each row's full width — icon and name together, not just one or
-  the other — is a single hoverable/clickable target, comfortable to reach
-  without aiming precisely. A regression test (`cargo test`) checks every
-  pattern's cell count against its documented population.
+- **A pattern collection per ruleset**: the library shows the collection
+  for the *active* rule and nothing else — Conway's Life (32 patterns: still
+  lifes, oscillators, spaceships, guns, methuselahs), HighLife (including
+  its replicator), Seeds, and Day & Night. A rule with no collection says so
+  instead of offering patterns that would just do something else there.
+  Starting configurations that need a pattern (Glider field, ...) only
+  appear when the active collection has it. Each row's full width — icon and
+  name together — is a single clickable target. Every entry is simulated in
+  `cargo test` under its own collection's rule and must really be the
+  still life / oscillator / spaceship / gun / methuselah its category claims.
+- **Golly interchange (Life-like B/S rules only)**: "Copy RLE" puts the
+  board on the clipboard as Golly-format RLE (`x = .., y = .., rule = B3/S23`
+  header, 70-column lines); Ctrl+V pastes RLE copied from Golly and makes it
+  the pattern in hand, switching to the rule in its header. Rule text
+  accepts `B3/S23`, `b3/s23` and the legacy `23/3`. Not supported, and
+  rejected with a message instead of misread: B0 rules, `:T`/`:P` bounded-grid
+  suffixes, `V`/`H` neighbourhoods, Generations and multi-state rules.
 - **Freehand drawing**: click a single cell, or press-and-drag to paint (or
   erase, if the stroke starts on a live cell) a trail of cells.
 - **Generation skipping**: a "Skip" dropdown (0/5/10/50/100/500/1000) lets
@@ -159,8 +169,9 @@ src/
   app.rs          - App struct (impl eframe::App), UI panels, canvas input
   simulation.rs   - SimState: sparse live-cell set, step/tick/randomize
   rules.rs        - RuleSet, named presets, B/S formatting
-  patterns.rs     - Pattern/Category, the pattern library definitions
-  rle.rs          - minimal RLE decoder (b/o/$/! run-length format)
+  patterns/       - Pattern/Category; one module per ruleset collection (life, highlife, seeds, daynight)
+  rle.rs          - Golly-format RLE reader/writer (rule header, validation, 70-column export)
+  analysis.rs     - bounded-simulation behaviour classifier (tests only; verifies the collections)
   starts.rs       - named starting configurations (Simulation row's "Start" dropdown)
   view.rs         - pan/zoom camera, cell<->screen coordinate math
 ```
@@ -172,6 +183,8 @@ src/
 | Draw / erase a cell | Left-click (Draw tool; erases instead if the stroke starts on a live cell) |
 | Freehand paint a trail | Left-click-drag (Draw tool) |
 | Force-erase cells | Switch to the "Eraser" tool (top bar, always visible), then click/drag — always removes, regardless of cell state |
+| Import a pattern from Golly | Copy it in Golly, press `Ctrl+V` here, click the canvas to place |
+| Export the board to Golly | "Copy RLE" button (Simulation row), then paste in Golly |
 | Place a pattern | Select it in the pattern library overlay (top-left), then click the canvas (switches back to the Draw tool) |
 | Cancel pattern placement | Right-click, `Esc`, or the "Cancel" button in the overlay |
 | Load a starting configuration | "Start" dropdown + "Load" button (Simulation row) — clears the board first |

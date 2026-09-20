@@ -20,7 +20,7 @@ pub type Cell = (i64, i64);
 /// better match the canvas's *actual* usable shape once the top bar's
 /// height is subtracted from a typical window (a wider-than-16:9 area, not
 /// a pure 16:9 one), which cuts down how much of the canvas ends up as
-/// unused pillarbox margin either side of the map (`app::fit_aspect_rect`).
+/// unused pillarbox margin either side of the map.
 /// Also chosen to be an exact multiple of the max-zoom cell size
 /// (`view::MAX_CELL_SIZE` = 60px divides it evenly on both axes: 16 cells
 /// wide, 8 cells tall), so the world's edge lines up cleanly with the grid
@@ -211,12 +211,23 @@ impl SimState {
             return;
         }
         self.accumulator += dt * self.speed;
-        while self.accumulator >= 1.0 {
+        let due = self.accumulator as u32;
+        let steps = due.min(MAX_STEPS_PER_TICK);
+        for _ in 0..steps {
             self.step();
-            self.accumulator -= 1.0;
+        }
+        self.accumulator -= steps as f32;
+        if due > MAX_STEPS_PER_TICK {
+            // Can't keep up (huge board, or a long stall): drop the backlog
+            // instead of freezing the window trying to drain it.
+            self.accumulator = self.accumulator.fract();
         }
     }
 }
+
+/// Upper bound on generations run by one `tick`, so the UI stays responsive
+/// when the requested speed outruns the machine.
+const MAX_STEPS_PER_TICK: u32 = 8;
 
 /// The 8 Moore-neighborhood offsets around a 2D cell. Pulled out as a named
 /// constant (rather than an inline nested loop) so a future 3D build can
@@ -227,7 +238,7 @@ impl SimState {
 const NEIGHBOR_OFFSETS: [(i64, i64); 8] =
     [(-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1)];
 
-fn next_generation(live: &HashSet<Cell>, rule: &RuleSet) -> HashSet<Cell> {
+pub(crate) fn next_generation(live: &HashSet<Cell>, rule: &RuleSet) -> HashSet<Cell> {
     let mut counts: HashMap<Cell, u8> = HashMap::with_capacity(live.len() * 4);
     for &(x, y) in live {
         for (dx, dy) in NEIGHBOR_OFFSETS {
@@ -249,4 +260,76 @@ fn next_generation(live: &HashSet<Cell>, rule: &RuleSet) -> HashSet<Cell> {
         })
         .map(|(cell, _)| cell)
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::rle;
+
+    fn life() -> SimState {
+        SimState::new(RuleSet::from_counts(&[3], &[2, 3]))
+    }
+
+    fn sim_with(rle_text: &str) -> SimState {
+        let mut sim = life();
+        sim.stamp(&rle::cells(rle_text), (0, 0));
+        sim
+    }
+
+    #[test]
+    fn rule_is_generic_seeds_keeps_nothing_it_did_not_just_birth() {
+        let mut seeds = SimState::new(RuleSet::from_counts(&[2], &[]));
+        seeds.stamp(&[(0, 0), (1, 0)], (0, 0));
+        let before = seeds.live.clone();
+        seeds.step();
+        assert!(seeds.live.is_disjoint(&before));
+        assert!(!seeds.live.is_empty());
+    }
+
+    #[test]
+    fn highlife_b6_differs_from_conway() {
+        // Ring of 6 live neighbours around an empty centre.
+        let ring = [(0, 0), (1, 0), (2, 0), (0, 1), (2, 1), (0, 2)];
+        let (mut conway, mut highlife) = (life(), SimState::new(RuleSet::from_counts(&[3, 6], &[2, 3])));
+        conway.stamp(&ring, (0, 0));
+        highlife.stamp(&ring, (0, 0));
+        conway.step();
+        highlife.step();
+        assert!(!conway.live.contains(&(1, 1)) && highlife.live.contains(&(1, 1)));
+    }
+
+    #[test]
+    fn nothing_is_born_outside_the_world_and_edges_clip() {
+        let mut sim = life();
+        sim.stamp(&[(0, 0), (1, 0), (2, 0)], (WORLD_MAX.0 - 1, 0)); // blinker across the east edge
+        assert!(sim.live.iter().all(|&c| in_world(c)));
+        sim.step_n(5);
+        assert!(sim.live.iter().all(|&c| in_world(c)));
+    }
+
+    #[test]
+    fn step_n_matches_repeated_step_and_zero_advances_one() {
+        let (mut a, mut b) = (sim_with("b2o$2o$bo!"), sim_with("b2o$2o$bo!"));
+        a.step_n(7);
+        for _ in 0..7 {
+            b.step();
+        }
+        assert_eq!((a.live, a.generation), (b.live, b.generation));
+
+        let mut c = sim_with("3o!");
+        c.step_n(0);
+        assert_eq!(c.generation, 1);
+    }
+
+    #[test]
+    fn tick_does_a_bounded_amount_of_work_per_call() {
+        let mut sim = sim_with("2o$2o!");
+        sim.running = true;
+        sim.speed = 60.0;
+        sim.tick(1000.0);
+        assert_eq!(sim.generation, MAX_STEPS_PER_TICK as u64);
+        sim.tick(0.0); // backlog was dropped, not carried over
+        assert_eq!(sim.generation, MAX_STEPS_PER_TICK as u64);
+    }
 }

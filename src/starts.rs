@@ -20,14 +20,29 @@ pub const START_CONFIGS: &[&str] = &["Random soup", "Glider field", "Gosper gun 
 /// `density`.
 pub fn apply(sim: &mut SimState, name: &str, library: &[Pattern], density: f32) {
     sim.clear();
-    match name {
-        "Random soup" => sim.randomize(WORLD_MIN, WORLD_MAX, density),
-        "Glider field" => scatter(sim, library, "Glider", 24, density),
-        "Gosper gun field" => scatter(sim, library, "Gosper Glider Gun", 60, density),
-        "Pulsar field" => scatter(sim, library, "Pulsar", 24, density),
-        // Any unrecognized name just leaves the cleared board.
-        _ => {}
+    if name == "Random soup" {
+        sim.randomize(WORLD_MIN, WORLD_MAX, density);
+    } else if let Some((pattern, spacing)) = scattered_pattern(name) {
+        scatter(sim, library, pattern, spacing, density);
     }
+    // Any unrecognized name just leaves the cleared board.
+}
+
+/// `(pattern name, lattice spacing)` for the start configs built from a
+/// library pattern.
+fn scattered_pattern(name: &str) -> Option<(&'static str, i64)> {
+    match name {
+        "Glider field" => Some(("Glider", 24)),
+        "Gosper gun field" => Some(("Gosper Glider Gun", 60)),
+        "Pulsar field" => Some(("Pulsar", 24)),
+        _ => None,
+    }
+}
+
+/// Whether `name` can be loaded with the active rule's collection - the
+/// pattern-based starts need their pattern to exist in it.
+pub fn is_available(name: &str, library: &[Pattern]) -> bool {
+    name == "Random soup" || scattered_pattern(name).is_some_and(|(pattern, _)| library.iter().any(|p| p.name == pattern))
 }
 
 /// Scatters copies of `pattern_name` across the whole world on a lattice of
@@ -75,7 +90,7 @@ mod tests {
     use crate::rules::RuleSet;
 
     fn empty_sim_and_library() -> (SimState, Vec<Pattern>) {
-        (SimState::new(RuleSet::from_counts(&[3], &[2, 3])), patterns::library())
+        (SimState::new(RuleSet::from_counts(&[3], &[2, 3])), patterns::library_for(&RuleSet::from_counts(&[3], &[2, 3])))
     }
 
     #[test]

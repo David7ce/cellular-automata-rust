@@ -3,6 +3,29 @@
 Changelog of shipped work, newest first. For what's planned next, see
 [ROADMAP.md](ROADMAP.md).
 
+## Unreleased — Golly interchange and per-rule pattern collections
+
+- **Golly-compatible RLE and rule strings.** `rle.rs` rewritten: `parse`
+  returns `Result` with line-numbered errors, stops at `!`, bounds run
+  counts and pattern size (previously `99999999999o!` panicked in debug and
+  wrapped in release; unknown letters were silently dropped), and reads the
+  header's `rule =`. `to_rle` writes Golly's format. `RuleSet::from_bs_string`
+  accepts `B3/S23`, `b3/s23`, `23/3`. "Copy RLE" exports the board; Ctrl+V
+  imports RLE from Golly and switches to the rule in its header.
+- **One pattern collection per ruleset** (`src/patterns/`): Life, HighLife,
+  Seeds, Day & Night. The library follows the active rule; the old
+  "names describe Conway's Life" warning is gone because non-Conway rules no
+  longer show Conway patterns. Every entry is simulated in tests under its
+  own rule and must match its category (`src/analysis.rs`).
+- **B0 rules are rejected; the "Inverse Life" preset is removed.** The
+  sparse step only visits cells next to a live cell, so B0 (birth with zero
+  neighbours) was silently simulated wrong. The custom-rule B0 checkbox is
+  disabled for the same reason.
+- **`SimState::tick` is bounded** (8 generations per call, backlog dropped)
+  so a rule/board slower than the speed slider no longer freezes the window.
+- Tests added for the rule engine (generic rules, world boundary,
+  `step_n`, tick bound), rule parsing and RLE round trips.
+
 ## Update — 2026-09-15 (v0.1.4: Flatpak release builds fixed)
 
 The v0.1.2 and v0.1.3 tags published GitHub releases with **no artifacts

@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod analysis;
 mod app;
 mod patterns;
 mod rle;
