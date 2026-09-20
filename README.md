@@ -237,7 +237,7 @@ Actions tab) builds and publishes, via GitHub Releases:
 |---|---|
 | Linux | AppImage, `.tar.gz`, and a Flatpak bundle |
 | Windows | An Inno Setup installer (`.exe`) and a portable `.zip` |
-| macOS | `.dmg` and `.zip`, for both Apple Silicon and Intel |
+| macOS | `.dmg` and `.zip`, for Apple Silicon (Intel Macs: build from source) |
 
 The packaging sources live under `packaging/` (icons, the Inno Setup
 script, the macOS `.app`/DMG bundling script) and `flatpak/` (the Flatpak

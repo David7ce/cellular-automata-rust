@@ -3,6 +3,13 @@
 Changelog of shipped work, newest first. For what's planned next, see
 [ROADMAP.md](ROADMAP.md).
 
+## v0.1.6 — 2026-09-20: simplified release workflow
+
+No application changes. `release.yml` rewritten: the Flatpak job no longer
+downloads a prebuilt Linux binary (the manifest builds from source, so it
+was unused) and **the macOS Intel (x86_64) build is dropped** — releases now
+ship macOS Apple Silicon only. Steps and names shortened.
+
 ## v0.1.5 — 2026-09-20: Golly interchange and per-rule pattern collections
 
 - **Golly-compatible RLE and rule strings.** `rle.rs` rewritten: `parse`

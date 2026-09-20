@@ -1,18 +1,14 @@
 # ──────────────────────────────────────────────────────────────────────────
-#  Cellular Automata — Multi-Platform Release Builder
-#
-#  Builds:
+# Cellular Automata — Multi-Platform Release Builder
+#   Builds:
 #    - Linux:   AppImage & tar.gz, plus a Flatpak bundle (x86_64)
 #    - Windows: Inno Setup installer & portable ZIP (x64)
-#    - macOS:   DMG & ZIP, Apple Silicon (arm64) and Intel (x86_64)
-#  Android is not built here — see docs/ROADMAP.md for why.
+#    - macOS:   DMG & ZIP, Apple Silicon (arm64)
 #
-#  Trigger: a pushed `v*` tag, or manual workflow_dispatch.
-#  workflow_dispatch has two modes:
-#    - release_tag empty -> build every platform, upload artifacts only.
-#      Use this to check every platform still builds without publishing.
-#    - release_tag set   -> also publish those builds under that tag
-#      (e.g. v0.2.0), so a release actually gets created on GitHub.
+# Trigger: a pushed `v*` tag, or manual workflow_dispatch.
+# workflow_dispatch modes:
+# - release_tag empty -> build artifacts only (no GitHub release published).
+# - release_tag set   -> publish release under the specified tag (e.g. v0.2.0).
 # ──────────────────────────────────────────────────────────────────────────
 name: Release
 
@@ -22,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Publish a release under this tag (e.g. v0.2.0). Leave empty to only upload build artifacts.'
+        description: 'Tag to release under (e.g. v0.2.0). Leave empty to build without publishing.'
         required: false
         default: ''
 
@@ -30,7 +26,7 @@ permissions:
   contents: read
 
 jobs:
-  # ─── Resolve version once ────────────────────────────────────────────────
+  # ─── Resolve Version ────────────────────────────────────────────────────────
   version:
     name: Resolve Version
     runs-on: ubuntu-latest
@@ -38,34 +34,27 @@ jobs:
       version: ${{ steps.resolve.outputs.version }}
     steps:
       - uses: actions/checkout@v4
-
       - name: Resolve version string
         id: resolve
         shell: bash
         run: |
-          # Prefer the dispatched release tag, then a pushed v* tag. On a
-          # plain dispatch github.ref_name is a branch name, not a version —
-          # fall back to Cargo.toml so artifacts never advertise a branch
-          # name as their version.
-          tag="${{ github.event.inputs.release_tag }}"
-          if [ -z "$tag" ]; then tag="${{ github.ref_name }}"; fi
-          clean="${tag#v}"
-          if ! [[ "$clean" =~ ^[0-9]+\.[0-9]+ ]]; then
-            clean=$(grep -m1 '^version' Cargo.toml | sed -E 's/version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/')
+          TAG="${{ github.event.inputs.release_tag || github.ref_name }}"
+          CLEAN="${TAG#v}"
+          if ! [[ "$CLEAN" =~ ^[0-9]+\.[0-9]+ ]]; then
+            CLEAN=$(grep -m1 '^version' Cargo.toml | sed -E 's/version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/')
           fi
-          echo "Resolved version: $clean"
-          echo "version=$clean" >> "$GITHUB_OUTPUT"
+          echo "version=$CLEAN" >> "$GITHUB_OUTPUT"
 
-  # ─── Linux (AppImage & tar.gz) ────────────────────────────────────────────
+  # ─── Linux (AppImage & tar.gz) ──────────────────────────────────────────────
   linux:
-    name: Linux x64 (AppImage & Tar)
+    name: Linux x64
     needs: [version]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache cargo registry & build
+      - name: Cache cargo
         uses: actions/cache@v4
         with:
           path: |
@@ -75,7 +64,7 @@ jobs:
           key: linux-cargo-${{ hashFiles('Cargo.lock') }}
           restore-keys: linux-cargo-
 
-      - name: Install Linux build dependencies
+      - name: Install dependencies
         run: |
           sudo apt-get update -y
           sudo apt-get install -y \
@@ -89,8 +78,7 @@ jobs:
         env:
           APP_VERSION: ${{ needs.version.outputs.version }}
         run: |
-          curl -fSL "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage" \
-            -o appimagetool
+          curl -fSL "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage" -o appimagetool
           chmod +x appimagetool
 
           APP=CellularAutomata.AppDir
@@ -102,8 +90,7 @@ jobs:
           chmod +x "$APP/AppRun"
 
           mkdir -p dist
-          ARCH=x86_64 ./appimagetool --appimage-extract-and-run "$APP" \
-            "dist/CellularAutomata-$APP_VERSION-Linux-x86_64.AppImage"
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run "$APP" "dist/CellularAutomata-$APP_VERSION-Linux-x86_64.AppImage"
           tar -czvf "dist/CellularAutomata-$APP_VERSION-Linux-x86_64.tar.gz" -C target/release cellular_automata
 
       - name: Upload Linux Artifacts
@@ -114,19 +101,9 @@ jobs:
             dist/CellularAutomata-*-Linux-x86_64.AppImage
             dist/CellularAutomata-*-Linux-x86_64.tar.gz
 
-      - name: Upload raw Linux binary (for the Flatpak job)
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-binary
-          path: target/release/cellular_automata
-          if-no-files-found: error
-
-  # ─── Linux (Flatpak) ──────────────────────────────────────────────────────
-  # Wraps the binary built above rather than compiling inside the sandbox —
-  # flatpak-builder's build environment has no network access, so `cargo
-  # build` can't fetch crates.io dependencies from inside it.
+  # ─── Linux (Flatpak) ────────────────────────────────────────────────────────
   linux-flatpak:
-    name: Linux x64 (Flatpak)
+    name: Linux Flatpak
     needs: [version, linux]
     runs-on: ubuntu-latest
     container:
@@ -135,29 +112,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download Linux binary
-        uses: actions/download-artifact@v4
-        with:
-          name: linux-binary
-          path: flatpak
-
-      - name: Fix binary executable permission
-        run: chmod +x flatpak/cellular_automata
-
-      # The metainfo now carries the real release history in-repo, so it is
-      # checked rather than rewritten. The previous `sed` replaced *every*
-      # <release> line with the version being built, which silently collapsed
-      # that whole history into one repeated entry.
-      - name: Check the released version is listed in the Flatpak metainfo
+      - name: Check Flatpak metainfo version
         run: |
-          version='${{ needs.version.outputs.version }}'
-          file=flatpak/io.github.David7ce.CellularAutomata.metainfo.xml
-          if ! grep -q "<release version=\"$version\"" "$file"; then
-            echo "::error::$file has no <release version=\"$version\" ...> entry."
-            echo "Add one (newest first) and bump Cargo.toml to match before tagging."
+          VERSION="${{ needs.version.outputs.version }}"
+          FILE="flatpak/io.github.David7ce.CellularAutomata.metainfo.xml"
+          if ! grep -q "<release version=\"$VERSION\"" "$FILE"; then
+            echo "::error::$FILE missing <release version=\"$VERSION\" ...> entry."
             exit 1
           fi
-          echo "metainfo lists $version"
 
       - name: Build Flatpak
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
@@ -173,16 +135,16 @@ jobs:
           path: CellularAutomata-*-Linux-x86_64.flatpak
           if-no-files-found: error
 
-  # ─── Windows (Installer & Portable) ──────────────────────────────────────
+  # ─── Windows (Installer & Portable) ─────────────────────────────────────────
   windows:
-    name: Windows (Installer & Portable)
+    name: Windows x64
     needs: [version]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache cargo registry & build
+      - name: Cache cargo
         uses: actions/cache@v4
         with:
           path: |
@@ -199,21 +161,13 @@ jobs:
         shell: pwsh
         run: choco install innosetup -y --no-progress
 
-      - name: Compile Inno Setup Installer
+      - name: Compile Installer & ZIP
         shell: pwsh
         env:
           APP_VERSION: ${{ needs.version.outputs.version }}
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
-            "packaging\windows\installer.iss" "/DAppVersion=$env:APP_VERSION"
-
-      - name: Package Portable ZIP
-        shell: pwsh
-        env:
-          APP_VERSION: ${{ needs.version.outputs.version }}
-        run: |
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "packaging\windows\installer.iss" "/DAppVersion=$env:APP_VERSION"
           Copy-Item target\release\cellular_automata.exe CellularAutomata.exe
           Compress-Archive -Path CellularAutomata.exe -DestinationPath "dist\CellularAutomata-$env:APP_VERSION-Windows-Portable.zip"
 
@@ -225,16 +179,16 @@ jobs:
             dist/CellularAutomata-*-Windows-Setup.exe
             dist/CellularAutomata-*-Windows-Portable.zip
 
-  # ─── macOS (Apple Silicon ARM64) ─────────────────────────────────────────
+  # ─── macOS (Apple Silicon ARM64) ───────────────────────────────────────────
   macos-arm64:
-    name: macOS (Apple Silicon ARM64)
+    name: macOS (Apple Silicon)
     needs: [version]
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache cargo registry & build
+      - name: Cache cargo
         uses: actions/cache@v4
         with:
           path: |
@@ -247,12 +201,12 @@ jobs:
       - name: Build release binary
         run: cargo build --release
 
-      - name: Package as .app, DMG & ZIP
+      - name: Package .app, DMG & ZIP
         env:
           APP_VERSION: ${{ needs.version.outputs.version }}
         run: packaging/macos/bundle.sh target/release/cellular_automata "$APP_VERSION" macOS-arm64
 
-      - name: Upload macOS ARM64 Artifacts
+      - name: Upload macOS Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: CellularAutomata-macOS-arm64
@@ -260,61 +214,16 @@ jobs:
             dist/CellularAutomata-*-macOS-arm64.dmg
             dist/CellularAutomata-*-macOS-arm64.zip
 
-  # ─── macOS (Intel x86_64) ─────────────────────────────────────────────────
-  macos-intel:
-    name: macOS (Intel x86_64)
-    needs: [version]
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-apple-darwin
-
-      - name: Cache cargo registry & build
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: macos-intel-cargo-${{ hashFiles('Cargo.lock') }}
-          restore-keys: macos-intel-cargo-
-
-      - name: Build release binary (x86_64)
-        run: cargo build --release --target x86_64-apple-darwin
-
-      - name: Package as .app, DMG & ZIP
-        env:
-          APP_VERSION: ${{ needs.version.outputs.version }}
-        run: packaging/macos/bundle.sh target/x86_64-apple-darwin/release/cellular_automata "$APP_VERSION" macOS-intel
-
-      - name: Upload macOS Intel Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: CellularAutomata-macOS-intel
-          path: |
-            dist/CellularAutomata-*-macOS-intel.dmg
-            dist/CellularAutomata-*-macOS-intel.zip
-
-  # ─── Create / Publish GitHub Release ──────────────────────────────────────
+  # ─── Publish Release ────────────────────────────────────────────────────────
   release:
-    name: Publish GitHub Release
-    needs: [version, linux, linux-flatpak, windows, macos-arm64, macos-intel]
-    # Publishes for a pushed v* tag, or a manual dispatch that named a
-    # release tag. Still requires every platform to have built: a half
-    # published release is worse than none, and each job's artifacts remain
-    # downloadable from the run either way.
-    if: |
-      success() && (
-        startsWith(github.ref, 'refs/tags/v') ||
-        github.event.inputs.release_tag != ''
-      )
+    name: Publish Release
+    needs: [version, linux, linux-flatpak, windows, macos-arm64]
+    if: success() && (startsWith(github.ref, 'refs/tags/v') || github.event.inputs.release_tag != '')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Download all build artifacts
+      - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           merge-multiple: true
@@ -323,13 +232,9 @@ jobs:
         shell: bash
         run: |
           sha256sum *.AppImage *.tar.gz *.flatpak *.exe *.zip *.dmg 2>/dev/null > SHA256SUMS || true
-          if [ ! -s SHA256SUMS ]; then
-            echo "No release assets found to checksum." >&2
-            exit 1
-          fi
           cat SHA256SUMS
 
-      - name: Publish Release with Assets
+      - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}
