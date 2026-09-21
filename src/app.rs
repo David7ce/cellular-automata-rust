@@ -95,6 +95,9 @@ pub struct App {
     show_extra_controls: bool,
     /// Short feedback line for clipboard import/export, shown in the top bar.
     status: Option<String>,
+    /// Set by the library's Open all / Close all buttons; applied to every
+    /// category header on the next frame, then cleared.
+    library_force_open: Option<bool>,
 }
 
 impl App {
@@ -126,6 +129,7 @@ impl App {
             show_side_panel: false,
             show_extra_controls: true,
             status: None,
+            library_force_open: None,
         }
     }
 
@@ -481,6 +485,9 @@ impl App {
             .show(ctx, |ui| {
                 egui::Frame::popup(ui.style()).show(ui, |ui| {
                     ui.set_width(240.0);
+                    // Grow to nearly the full canvas height (the frame's own
+                    // padding accounts for the rest).
+                    ui.set_max_height(canvas_rect.height() - 2.0 * MINIMAP_MARGIN - 24.0);
                     ui.horizontal(|ui| {
                         ui.heading("Pattern Library");
                         // Right-to-left sub-layout pins the close button to
@@ -520,19 +527,25 @@ impl App {
                             }
                         });
                     }
+                    if !self.library.is_empty() {
+                        ui.horizontal(|ui| {
+                            if ui.small_button("Open all").clicked() {
+                                self.library_force_open = Some(true);
+                            }
+                            if ui.small_button("Close all").clicked() {
+                                self.library_force_open = Some(false);
+                            }
+                        });
+                    }
                     ui.separator();
-                    // `auto_shrink([false, true])`: always claim the full
-                    // panel width (so the scrollbar sits flush at the
-                    // panel's right edge, not hugging the widest row's
-                    // content) while still only growing as tall as the
-                    // (now default-open) categories' content needs, up to
-                    // `max_height` — nearly the whole canvas height minus a
-                    // small allowance for the heading/cancel row above it,
-                    // so the library can actually grow open to show
-                    // everything at once instead of being capped short.
+                    let force_open = self.library_force_open.take();
+                    // `auto_shrink([false, true])`: claim the full panel width
+                    // (scrollbar flush at the right edge) but only as much
+                    // height as the open categories need, up to whatever is
+                    // left of the panel's full-canvas-height budget.
                     egui::ScrollArea::vertical()
                         .auto_shrink([false, true])
-                        .max_height((canvas_rect.height() - 90.0).max(300.0))
+                        .max_height(ui.available_height())
                         .show(ui, |ui| {
                             for category in Category::ALL {
                                 if !self.library.iter().any(|p| p.category == category) {
@@ -540,6 +553,7 @@ impl App {
                                 }
                                 egui::CollapsingHeader::new(category.label())
                                     .default_open(false)
+                                    .open(force_open)
                                     .show(ui, |ui| {
                                         for (idx, pattern) in self.library.iter().enumerate() {
                                             if pattern.category != category {
