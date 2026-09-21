@@ -14,6 +14,12 @@ Changelog of shipped work, newest first. For what's planned next, see
   instead of SipHash. Reproducible benchmark committed as an `#[ignore]`d test.
 - **"Save RLE" button** writes the board to a `.rle` file through a native
   save dialog (Copy RLE / Import RLE unchanged).
+- **Live cells are drawn as batched meshes** instead of one rect shape each,
+  and `app.rs` is split into `app/canvas.rs` (input + drawing, broken into
+  `handle_*` / `draw_*` methods) and `app/panels.rs` (top bar, library).
+- **Playing pauses at 500,000 live cells** (was 1,000,000), keeping one
+  generation to a frame or two on the bigger world.
+- **CI:** Node 24 action versions; `ubuntu-24.04` instead of `ubuntu-latest`.
 - **Library panel:** categories still start closed; "Open all" / "Close all"
   buttons; the panel grows to nearly the full canvas height.
 

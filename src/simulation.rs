@@ -5,9 +5,7 @@ use rand::RngExt;
 
 use crate::rules::RuleSet;
 
-/// A location on the plane. Currently 2D (x, y); see the module-level "3D
-/// migration path" note below for what widening this to (x, y, z) would
-/// touch.
+/// A location on the plane.
 pub type Cell = (i64, i64);
 
 /// Multiply-rotate hasher (the scheme rustc's `FxHasher` uses): several times
@@ -89,7 +87,7 @@ impl SimState {
             generation: 0,
             last_births: 0,
             last_deaths: 0,
-            population_limit: 1_000_000,
+            population_limit: 500_000,
             accumulator: 0.0,
         }
     }
@@ -228,12 +226,7 @@ impl SimState {
 /// when the requested speed outruns the machine.
 const MAX_STEPS_PER_TICK: u32 = 8;
 
-/// The 8 Moore-neighborhood offsets around a 2D cell. Pulled out as a named
-/// constant (rather than an inline nested loop) so a future 3D build can
-/// swap in the 26-offset 3D Moore neighborhood (`dx/dy/dz in -1..=1`, minus
-/// the origin) here alone — `next_generation` itself, `RuleSet` (already
-/// generic over "how many neighbors", 0-8 today), and every other consumer
-/// of `Cell` would be unaffected by that change.
+/// The 8 Moore-neighborhood offsets around a cell.
 const NEIGHBOR_OFFSETS: [(i64, i64); 8] = [
     (-1, -1),
     (0, -1),

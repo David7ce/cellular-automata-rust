@@ -161,7 +161,9 @@ identity.
 ```
 src/
   main.rs        - eframe bootstrap / window setup
-  app.rs          - App struct (impl eframe::App), UI panels, canvas input
+  app.rs          - App struct (impl eframe::App), rule/RLE import-export glue
+  app/canvas.rs   - canvas input (zoom, pan, tools, minimap) and drawing
+  app/panels.rs   - top control bar and the pattern-library overlay
   simulation.rs   - SimState: sparse live-cell set, step/tick/randomize
   rules.rs        - RuleSet, named presets, B/S formatting
   patterns/       - Pattern/Category; one module per ruleset collection (life, highlife, seeds, daynight)
