@@ -1,10 +1,10 @@
 //! Behaviour classification by bounded simulation — used to verify that every
 //! library pattern really is what its category claims under its own rule.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::rules::RuleSet;
-use crate::simulation::{Cell, next_generation};
+use crate::simulation::{Cell, CellSet, next_generation};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Behavior {
@@ -25,7 +25,7 @@ pub enum Behavior {
 
 /// Shape of `cells` translated so its bounding box starts at the origin,
 /// plus the translation that was removed.
-fn normalize(cells: &HashSet<Cell>) -> (Vec<Cell>, Cell) {
+fn normalize(cells: &CellSet) -> (Vec<Cell>, Cell) {
     let min_x = cells.iter().map(|c| c.0).min().unwrap_or(0);
     let min_y = cells.iter().map(|c| c.1).min().unwrap_or(0);
     let mut shape: Vec<Cell> = cells.iter().map(|&(x, y)| (x - min_x, y - min_y)).collect();
@@ -34,7 +34,7 @@ fn normalize(cells: &HashSet<Cell>) -> (Vec<Cell>, Cell) {
 }
 
 pub fn classify(start: &[(i32, i32)], rule: &RuleSet, max_generations: u32) -> Behavior {
-    let mut live: HashSet<Cell> = start.iter().map(|&(x, y)| (x as i64, y as i64)).collect();
+    let mut live: CellSet = start.iter().map(|&(x, y)| (x as i64, y as i64)).collect();
     let mut seen: HashMap<Vec<Cell>, (u32, Cell)> = HashMap::new();
     for generation in 0..=max_generations {
         if live.is_empty() {

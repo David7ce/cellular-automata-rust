@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::hash::{BuildHasherDefault, Hasher};
 
 use rand::RngExt;
 
@@ -8,6 +9,36 @@ use crate::rules::RuleSet;
 /// migration path" note below for what widening this to (x, y, z) would
 /// touch.
 pub type Cell = (i64, i64);
+
+/// Multiply-rotate hasher (the scheme rustc's `FxHasher` uses): several times
+/// cheaper than the default SipHash for small integer keys, which is all the
+/// step loop hashes. HashDoS resistance is irrelevant in a local app.
+#[derive(Default)]
+pub struct CellHasher(u64);
+
+impl CellHasher {
+    fn add(&mut self, word: u64) {
+        self.0 = (self.0.rotate_left(5) ^ word).wrapping_mul(0x517c_c1b7_2722_0a95);
+    }
+}
+
+impl Hasher for CellHasher {
+    fn write(&mut self, bytes: &[u8]) {
+        for &b in bytes {
+            self.add(b as u64);
+        }
+    }
+
+    fn write_i64(&mut self, i: i64) {
+        self.add(i as u64);
+    }
+
+    fn finish(&self) -> u64 {
+        self.0.rotate_left(26)
+    }
+}
+
+pub type CellSet = HashSet<Cell, BuildHasherDefault<CellHasher>>;
 
 /// The 2D plane is finite, not infinite: cells outside these bounds can
 /// never be painted, stamped, randomized, or born into. This bounds memory
@@ -27,21 +58,11 @@ pub fn in_world(cell: Cell) -> bool {
     cell.0 >= WORLD_MIN.0 && cell.0 <= WORLD_MAX.0 && cell.1 >= WORLD_MIN.1 && cell.1 <= WORLD_MAX.1
 }
 
-/// Side length (in cells) of one spatial-index chunk. Chosen to be a bit
-/// larger than a typical zoomed-in viewport in cells, so a visible-bounds
-/// query touches only a handful of chunks.
+/// Side length (in cells) of one minimap occupancy chunk.
 pub const CHUNK_SIZE: i64 = 32;
 
-fn chunk_of(cell: Cell) -> (i64, i64) {
-    (cell.0.div_euclid(CHUNK_SIZE), cell.1.div_euclid(CHUNK_SIZE))
-}
-
 pub struct SimState {
-    pub live: HashSet<Cell>,
-    /// Spatial index mirroring `live`, bucketed by chunk, so rendering can
-    /// query only the cells near the viewport instead of scanning every
-    /// live cell every frame.
-    chunks: HashMap<(i64, i64), HashSet<Cell>>,
+    pub live: CellSet,
     pub rule: RuleSet,
     pub running: bool,
     /// Generations per second.
@@ -61,8 +82,7 @@ pub struct SimState {
 impl SimState {
     pub fn new(rule: RuleSet) -> Self {
         SimState {
-            live: HashSet::new(),
-            chunks: HashMap::new(),
+            live: CellSet::default(),
             rule,
             running: false,
             speed: 8.0,
@@ -78,30 +98,11 @@ impl SimState {
         if !in_world(cell) {
             return;
         }
-        if self.live.insert(cell) {
-            self.chunks.entry(chunk_of(cell)).or_default().insert(cell);
-        }
+        self.live.insert(cell);
     }
 
     fn remove_cell(&mut self, cell: Cell) -> bool {
-        if !self.live.remove(&cell) {
-            return false;
-        }
-        let key = chunk_of(cell);
-        if let Some(bucket) = self.chunks.get_mut(&key) {
-            bucket.remove(&cell);
-            if bucket.is_empty() {
-                self.chunks.remove(&key);
-            }
-        }
-        true
-    }
-
-    fn rebuild_chunks(&mut self) {
-        self.chunks.clear();
-        for &cell in &self.live {
-            self.chunks.entry(chunk_of(cell)).or_default().insert(cell);
-        }
+        self.live.remove(&cell)
     }
 
     pub fn toggle_cell(&mut self, cell: Cell) {
@@ -126,7 +127,6 @@ impl SimState {
 
     pub fn clear(&mut self) {
         self.live.clear();
-        self.chunks.clear();
         self.generation = 0;
         self.last_births = 0;
         self.last_deaths = 0;
@@ -149,33 +149,31 @@ impl SimState {
         }
     }
 
-    /// Chunk coordinates that currently contain at least one live cell —
-    /// a coarse, `O(occupied chunks)` overview of where activity is on the
-    /// whole (potentially huge) plane, used by the minimap instead of
-    /// iterating every live cell.
-    pub fn occupied_chunks(&self) -> impl Iterator<Item = (i64, i64)> + '_ {
-        self.chunks.keys().copied()
+    /// Chunk coordinates (`cell.div_euclid(CHUNK_SIZE)`) that contain at
+    /// least one live cell — a coarse overview for the minimap. One pass over
+    /// the live cells into a fixed grid, so it costs the same as drawing them.
+    pub fn occupied_chunks(&self) -> Vec<(i64, i64)> {
+        const SIDE: usize = ((WORLD_MAX.0 - WORLD_MIN.0 + 1) / CHUNK_SIZE) as usize;
+        let mut seen = vec![false; SIDE * SIDE];
+        for &(x, y) in &self.live {
+            let (cx, cy) = ((x - WORLD_MIN.0) / CHUNK_SIZE, (y - WORLD_MIN.1) / CHUNK_SIZE);
+            seen[cy as usize * SIDE + cx as usize] = true;
+        }
+        let origin = (WORLD_MIN.0 / CHUNK_SIZE, WORLD_MIN.1 / CHUNK_SIZE);
+        (0..SIDE * SIDE)
+            .filter(|&i| seen[i])
+            .map(|i| (origin.0 + (i % SIDE) as i64, origin.1 + (i / SIDE) as i64))
+            .collect()
     }
 
     /// Live cells within `[min, max]` (inclusive), for rendering only the
-    /// visible viewport instead of the whole (potentially huge) live set.
+    /// visible viewport.
     pub fn cells_in_bounds(&self, min: Cell, max: Cell) -> Vec<Cell> {
-        let mut out = Vec::new();
-        let (min_cx, min_cy) = chunk_of(min);
-        let (max_cx, max_cy) = chunk_of(max);
-        for cx in min_cx..=max_cx {
-            for cy in min_cy..=max_cy {
-                if let Some(bucket) = self.chunks.get(&(cx, cy)) {
-                    out.extend(
-                        bucket
-                            .iter()
-                            .copied()
-                            .filter(|&(x, y)| x >= min.0 && x <= max.0 && y >= min.1 && y <= max.1),
-                    );
-                }
-            }
-        }
-        out
+        self.live
+            .iter()
+            .copied()
+            .filter(|&(x, y)| x >= min.0 && x <= max.0 && y >= min.1 && y <= max.1)
+            .collect()
     }
 
     pub fn step(&mut self) {
@@ -185,7 +183,6 @@ impl SimState {
         self.last_births = births as u64;
         self.last_deaths = (self.live.len() + births - next.len()) as u64;
         self.live = next;
-        self.rebuild_chunks();
         self.generation += 1;
     }
 
@@ -248,8 +245,9 @@ const NEIGHBOR_OFFSETS: [(i64, i64); 8] = [
     (1, 1),
 ];
 
-pub(crate) fn next_generation(live: &HashSet<Cell>, rule: &RuleSet) -> HashSet<Cell> {
-    let mut counts: HashMap<Cell, u8> = HashMap::with_capacity(live.len() * 4);
+pub(crate) fn next_generation(live: &CellSet, rule: &RuleSet) -> CellSet {
+    let mut counts: HashMap<Cell, u8, BuildHasherDefault<CellHasher>> =
+        HashMap::with_capacity_and_hasher(live.len() * 4, Default::default());
     for &(x, y) in live {
         for (dx, dy) in NEIGHBOR_OFFSETS {
             *counts.entry((x + dx, y + dy)).or_insert(0) += 1;
@@ -364,5 +362,43 @@ mod tests {
         assert_eq!(sim.generation, MAX_STEPS_PER_TICK as u64);
         sim.tick(0.0); // backlog was dropped, not carried over
         assert_eq!(sim.generation, MAX_STEPS_PER_TICK as u64);
+    }
+
+    #[test]
+    fn occupied_chunks_and_visible_cells_reflect_the_live_set() {
+        let mut sim = life();
+        sim.stamp(&[(0, 0), (1, 0)], (-1, -1)); // (-1,-1) and (0,-1): two chunks
+        sim.stamp(&[(0, 0)], (33, 0));
+        sim.stamp(&[(0, 0)], (WORLD_MAX.0, WORLD_MAX.1)); // last chunk of the world
+        let mut chunks = sim.occupied_chunks();
+        chunks.sort_unstable();
+        let last = (
+            WORLD_MAX.0.div_euclid(CHUNK_SIZE),
+            WORLD_MAX.1.div_euclid(CHUNK_SIZE),
+        );
+        assert_eq!(chunks, vec![(-1, -1), (0, -1), (1, 0), last]);
+
+        let mut visible = sim.cells_in_bounds((-1, -1), (33, 0));
+        visible.sort_unstable();
+        assert_eq!(visible, vec![(-1, -1), (0, -1), (33, 0)]);
+    }
+
+    /// Reproducible timing: `cargo test --release bench -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn bench_step_throughput() {
+        for (name, half_w, half_h, generations) in
+            [("200x200 soup", 100, 100, 60), ("960x480 soup", 480, 240, 12)]
+        {
+            let mut sim = life();
+            sim.randomize((-half_w, -half_h), (half_w - 1, half_h - 1), 0.35);
+            let live = sim.live.len();
+            let start = std::time::Instant::now();
+            for _ in 0..generations {
+                sim.step();
+            }
+            let rate = generations as f64 / start.elapsed().as_secs_f64();
+            println!("{name}: {live} live at start, {rate:.1} gen/s");
+        }
     }
 }

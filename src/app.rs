@@ -161,6 +161,24 @@ impl App {
             .randomize((min_x, min_y), (max_x, max_y), self.random_density);
     }
 
+    /// Saves the board as a Golly-format `.rle` file through the native
+    /// save dialog.
+    fn save_rle_file(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .set_title("Save board as RLE")
+            .add_filter("RLE pattern", &["rle"])
+            .set_file_name("pattern.rle")
+            .save_file()
+        else {
+            return;
+        };
+        let text = rle::to_rle(self.sim.live.iter().copied(), self.sim.rule);
+        self.status = Some(match std::fs::write(&path, text) {
+            Ok(()) => format!("Saved {} cells to {}", self.sim.live.len(), path.display()),
+            Err(e) => format!("Save failed: {e}"),
+        });
+    }
+
     /// Opens a Golly-format `.rle` file through the native file picker.
     fn import_rle_file(&mut self) {
         let Some(path) = rfd::FileDialog::new()
@@ -414,6 +432,13 @@ impl App {
                 {
                     ui.ctx().copy_text(rle::to_rle(self.sim.live.iter().copied(), self.sim.rule));
                     self.status = Some(format!("Copied {} cells as RLE", self.sim.live.len()));
+                }
+                if ui
+                    .button("Save RLE")
+                    .on_hover_text("Save the board as a Golly-format .rle file")
+                    .clicked()
+                {
+                    self.save_rle_file();
                 }
                 if ui
                     .button("Import RLE")

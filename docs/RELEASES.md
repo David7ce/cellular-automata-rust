@@ -3,6 +3,20 @@
 Changelog of shipped work, newest first. For what's planned next, see
 [ROADMAP.md](ROADMAP.md).
 
+## Unreleased
+
+- **Simulation step is ~2.7x faster** (`cargo test --release bench -- --ignored
+  --nocapture`, 35% soup): 200x200 209 -> 561 gen/s, 960x480 5.9 -> 14.8
+  gen/s. The spatial chunk index that was rebuilt (re-hashing every live
+  cell) every generation is gone — visible cells are filtered straight from
+  the live set and the minimap occupancy is one pass into a 128x128 grid —
+  and the live set and neighbour counts use a cheap multiply-rotate hasher
+  instead of SipHash. Reproducible benchmark committed as an `#[ignore]`d test.
+- **"Save RLE" button** writes the board to a `.rle` file through a native
+  save dialog (Copy RLE / Import RLE unchanged).
+- **Library panel:** categories still start closed; "Open all" / "Close all"
+  buttons; the panel grows to nearly the full canvas height.
+
 ## v0.1.7 — 2026-09-20: bigger map, Import RLE, no console window
 
 - **The world is a 4096 x 4096 square** (was 960 x 480), matching Golly's

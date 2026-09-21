@@ -135,7 +135,7 @@ pub fn transform_cells(cells: &[(i32, i32)], turns: u8, flip_x: bool) -> Vec<(i3
 mod tests {
     use super::*;
     use crate::analysis::{Behavior, classify};
-    use crate::simulation::next_generation;
+    use crate::simulation::{CellSet, next_generation};
     use std::collections::HashSet;
 
     #[test]
@@ -236,7 +236,7 @@ mod tests {
         for collection in COLLECTIONS {
             let rule = RuleSet::from_bs_string(collection.rule).unwrap();
             for pattern in library_for(&rule).iter().filter(|p| p.category == Category::Gun) {
-                let mut live: HashSet<_> = pattern.cells.iter().map(|&(x, y)| (x as i64, y as i64)).collect();
+                let mut live: CellSet = pattern.cells.iter().map(|&(x, y)| (x as i64, y as i64)).collect();
                 let mut populations = Vec::new();
                 for generation in 1..=240 {
                     live = next_generation(&live, &rule);
@@ -295,7 +295,7 @@ mod tests {
                 .unwrap()
         }
         /// 8-connected components of `live`.
-        fn components(live: &HashSet<(i64, i64)>) -> Vec<Shape> {
+        fn components(live: &CellSet) -> Vec<Shape> {
             let mut left = live.clone();
             let mut out = Vec::new();
             while let Some(&start) = left.iter().next() {
@@ -328,7 +328,7 @@ mod tests {
             .collect();
         let step = |rule: &str, generations: u32| {
             let rule = RuleSet::from_bs_string(rule).unwrap();
-            let mut live: HashSet<_> = original.iter().copied().collect();
+            let mut live: CellSet = original.iter().copied().collect();
             for _ in 0..generations {
                 live = next_generation(&live, &rule);
             }

@@ -17,21 +17,13 @@ its own tests.
 
 ## 1. Core correctness
 
-- **Performance is bounded by bookkeeping, not the rule.** Measured on a
-  release build, 60 generations of B3/S23: `SimState::step` 284 gen/s on a
-  200x200 soup versus 397 gen/s for `next_generation` alone — about 28% of
-  each generation goes to state the simulation does not need:
-  - `rebuild_chunks()` re-hashes every live cell every generation to refresh
-    a spatial index. Build it inline in `next_generation`, or derive minimap
-    occupancy on demand.
-  - `HashSet<(i64, i64)>` hashes 16 bytes through SipHash per lookup; the
-    world fits one `u32` index (4096 x 4096 is 24 bits).
-
-  Do these two (the births/deaths passes are already merged into one),
-  re-measure, stop. **Do not switch to a dense grid**: on the populations the playground actually runs the sparse set is faster
-  (284 vs 206 gen/s at 12k cells) and only loses on full-world soups
-  (12.5 vs 202 gen/s). Commit a benchmark (an `#[ignore]`d timing test
-  avoids a dev-dependency) so "is it faster?" has an answer.
+- **Rendering is the next performance cliff.** One `rect_filled` per
+  visible live cell means a fully zoomed-out board with hundreds of
+  thousands of cells issues that many draw calls per frame. Batch (a mesh,
+  or one rect per row run) only if it shows up as a problem; the step is no
+  longer the bottleneck (see RELEASES for the numbers). Do not switch to a
+  dense grid: the sparse set beats it at the populations the playground
+  actually runs.
 - **Split `central_canvas`** (`app.rs`, ~300-line closure handling zoom, pan,
   keyboard, minimap, tools, grid, cells, ghost preview and overlays) into
   `handle_input` / `draw_grid` / `draw_cells` / `draw_overlays` methods.
@@ -41,11 +33,11 @@ its own tests.
 ## 2. Golly interchange — what is left
 
 Shipped: RLE read/write with rule header, `B3/S23` / `23/3` rule strings,
-clipboard copy and paste, `.rle` file import, per-rule pattern collections.
+clipboard copy and paste, `.rle` file import and save, per-rule pattern
+collections.
 
-- **Save `.rle` files.** Import has a file picker (`rfd`) and export goes
-  through the clipboard; add a save dialog if pasting into a file by hand
-  gets tedious. Loading a whole Golly pattern *collection* is not planned.
+- Loading a whole Golly pattern *collection* (a folder of `.rle` files) is
+  not planned; import is one file at a time.
 - **Full-world soups are slow.** The world is 4096 x 4096, so an explosive
   rule can now grow to millions of live cells, and one generation of that
   takes seconds (the per-tick cap bounds generations per frame, not the
