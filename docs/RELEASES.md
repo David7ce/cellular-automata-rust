@@ -3,7 +3,7 @@
 Changelog of shipped work, newest first. For what's planned next, see
 [ROADMAP.md](ROADMAP.md).
 
-## Unreleased
+## v0.1.8 — 2026-09-21: faster step, Save RLE, library panel
 
 - **Simulation step is ~2.7x faster** (`cargo test --release bench -- --ignored
   --nocapture`, 35% soup): 200x200 209 -> 561 gen/s, 960x480 5.9 -> 14.8
