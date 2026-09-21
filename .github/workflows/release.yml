@@ -29,11 +29,11 @@ jobs:
   # ─── Resolve Version ────────────────────────────────────────────────────────
   version:
     name: Resolve Version
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.resolve.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Resolve version string
         id: resolve
         shell: bash
@@ -49,13 +49,13 @@ jobs:
   linux:
     name: Linux x64
     needs: [version]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -94,7 +94,7 @@ jobs:
           tar -czvf "dist/CellularAutomata-$APP_VERSION-Linux-x86_64.tar.gz" -C target/release cellular_automata
 
       - name: Upload Linux Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: CellularAutomata-Linux-x64
           path: |
@@ -105,12 +105,12 @@ jobs:
   linux-flatpak:
     name: Linux Flatpak
     needs: [version, linux]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container:
       image: bilelmoussaoui/flatpak-github-actions:freedesktop-24.08
       options: --privileged
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Check Flatpak metainfo version
         run: |
@@ -129,7 +129,7 @@ jobs:
           cache-key: flatpak-builder-${{ hashFiles('flatpak/io.github.David7ce.CellularAutomata.json') }}
 
       - name: Upload Flatpak Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: CellularAutomata-Linux-Flatpak
           path: CellularAutomata-*-Linux-x86_64.flatpak
@@ -141,11 +141,11 @@ jobs:
     needs: [version]
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -172,7 +172,7 @@ jobs:
           Compress-Archive -Path CellularAutomata.exe -DestinationPath "dist\CellularAutomata-$env:APP_VERSION-Windows-Portable.zip"
 
       - name: Upload Windows Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: CellularAutomata-Windows
           path: |
@@ -185,11 +185,11 @@ jobs:
     needs: [version]
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -207,7 +207,7 @@ jobs:
         run: packaging/macos/bundle.sh target/release/cellular_automata "$APP_VERSION" macOS-arm64
 
       - name: Upload macOS Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: CellularAutomata-macOS-arm64
           path: |
@@ -219,12 +219,12 @@ jobs:
     name: Publish Release
     needs: [version, linux, linux-flatpak, windows, macos-arm64]
     if: success() && (startsWith(github.ref, 'refs/tags/v') || github.event.inputs.release_tag != '')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           merge-multiple: true
 
@@ -235,7 +235,7 @@ jobs:
           cat SHA256SUMS
 
       - name: Publish Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}
           name: "Cellular Automata ${{ github.event.inputs.release_tag || github.ref_name }}"
